@@ -1,0 +1,85 @@
+{
+  "name": "Chamber",
+  "asset_version": "chamber-symbol-v1",
+  "status": "canonical",
+  "scope": "symbol only; wordmark and typography intentionally unspecified",
+  "geometry": {
+    "canvas": {
+      "width": 320,
+      "height": 320
+    },
+    "outer_octagon": {
+      "chamfer": 54,
+      "corner_radius": 10,
+      "points": [
+        [54, 0],
+        [266, 0],
+        [320, 54],
+        [320, 266],
+        [266, 320],
+        [54, 320],
+        [0, 266],
+        [0, 54]
+      ]
+    },
+    "frame_width": 50,
+    "inner_octagon": {
+      "inset": 50,
+      "chamfer": 36,
+      "corner_radius": 7.5
+    },
+    "wedge": {
+      "apex": [160, 160],
+      "direction": "right",
+      "half_angle_degrees": 34,
+      "base_x": 380,
+      "clip_to_outer_octagon": true
+    }
+  },
+  "palette": {
+    "indigo": "#5968F2",
+    "violet": "#8058E8",
+    "orchid": "#B752D7",
+    "rose": "#E45E9A",
+    "frame_base": "#58558F",
+    "wedge_base": "#68578F",
+    "dark_background": "#111322",
+    "light_background": "#FFFFFF",
+    "monochrome_dark": "#222433",
+    "monochrome_light": "#FFFFFF"
+  },
+  "aurora": {
+    "radial_stop_profile": [
+      {"offset": 0.0, "opacity_multiplier": 1.0},
+      {"offset": 0.56, "opacity_multiplier": 0.42},
+      {"offset": 1.0, "opacity_multiplier": 0.0}
+    ],
+    "frame_field": [
+      {"color": "indigo", "cx": 245, "cy": 62, "r": 180, "peak_opacity": 0.72},
+      {"color": "orchid", "cx": 120, "cy": 270, "r": 216, "peak_opacity": 0.71},
+      {"color": "rose", "cx": 36, "cy": 165, "r": 195, "peak_opacity": 0.56},
+      {"color": "violet", "cx": 166, "cy": 168, "r": 210, "peak_opacity": 0.69}
+    ],
+    "wedge_field": [
+      {"color": "rose", "cx": 292, "cy": 92, "r": 150, "peak_opacity": 0.76},
+      {"color": "orchid", "cx": 232, "cy": 108, "r": 165, "peak_opacity": 0.7},
+      {"color": "indigo", "cx": 286, "cy": 236, "r": 160, "peak_opacity": 0.72},
+      {"color": "violet", "cx": 220, "cy": 205, "r": 185, "peak_opacity": 0.66}
+    ],
+    "design_rule": "frame and wedge share the same narrow palette but use independently arranged aurora fields; differentiation comes from spatial color distribution, not large luminance separation"
+  },
+  "usage": {
+    "clear_space": "at least 1/8 of mark width around the outer octagon",
+    "preferred_minimum_size_px": 32,
+    "tiny_size_guidance": "at 24px and below prefer the monochrome mark if aurora separation becomes muddy",
+    "backgrounds": ["light neutral", "dark neutral"],
+    "avoid": [
+      "changing the 34-degree wedge geometry",
+      "introducing prominent green",
+      "replacing the two independent aurora fields with one continuous field",
+      "large frame/wedge luminance separation",
+      "moving warm color mass to the right solely to force boundary contrast",
+      "adding a central sparkle/diamond or AI-brain/circuit motif"
+    ]
+  }
+}
