@@ -2,7 +2,7 @@
 
 Chamber is a local-first audit, policy, and quality-evidence layer around native AI coding agents. It does not replace Codex, Gemini CLI, Cursor, or their tool loops. Host adapters translate lifecycle events into a vendor-neutral canonical event model; the Chamber core records traces, evaluates policy, and emits evidence that another system can consume.
 
-The initial MVP supports fixture-validated Codex and Gemini CLI adapters, audit-only policy evaluation, local JSONL traces, and a standalone Node CLI. It deliberately does not own task queues, model prices, quotas, or economic routing.
+The initial MVP supports fixture-validated Codex and Gemini CLI adapters, audit-only policy evaluation, local JSONL traces, and a standalone Node CLI. It deliberately does not own task queues, model prices, quotas, or economic routing. Chamber also has no Orca dependency: Orca may be used as an optional interaction surface for native worker sessions, but Chamber observes and controls those workers through their native runtime hooks rather than an Orca-specific integration.
 
 ## License and brand
 
