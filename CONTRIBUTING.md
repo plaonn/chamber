@@ -1,11 +1,11 @@
 # Contributing to Chamber
 
-Chamber is currently a small, maintainer-led open-source project. Contributions are welcome, but the project intentionally keeps governance lightweight while the architecture is still settling.
+Chamber is currently a small, maintainer-led open-source project. Contributions are welcome, but the project intentionally keeps governance lightweight while the architecture is still settling. Maintainer review and response times are best-effort; opening an issue or pull request does not create a support, merge, or roadmap commitment.
 
 ## Before contributing
 
 - Read `AGENTS.md` and the relevant architecture/schema documents before changing behavior or public contracts.
-- For substantial changes, prefer opening an issue or discussion first so scope and product boundaries can be aligned before implementation.
+- For substantial changes, prefer opening an issue first so scope and product boundaries can be aligned before implementation.
 - Keep Chamber independent of Orca and any single native agent runtime.
 - Do not include secrets, credentials, private transcripts, private absolute paths, or real sensitive hook payloads in issues, fixtures, commits, or test output.
 
@@ -18,7 +18,7 @@ pnpm test
 pnpm check
 ```
 
-Add or update fixtures and regression tests when changing adapters, schemas, policy behavior, persistence, or evidence semantics.
+Add or update fixtures and regression tests when changing adapters, schemas, policy behavior, persistence, or evidence semantics. Pull requests also run these checks automatically in GitHub Actions.
 
 ## Contribution license
 
@@ -39,3 +39,5 @@ Changes to the official Chamber symbol or other canonical brand assets require e
 ## Scope and review
 
 A merged contribution becomes part of Chamber's maintained codebase, but merge does not imply that every proposed API, integration, or compatibility claim becomes a permanent project commitment. Maintainers may ask for a smaller scope, additional evidence, compatibility work, or a follow-up change when needed to preserve the project's documented boundaries.
+
+External issues remain public backlog until a maintainer explicitly adopts them. They are not automatically copied into the maintainer's private execution plan or treated as scheduled work.

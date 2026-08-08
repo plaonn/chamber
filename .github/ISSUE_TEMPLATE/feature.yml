@@ -1,0 +1,48 @@
+name: Feature request
+description: Describe a problem or use case Chamber could address
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Chamber is maintainer-led and feature requests are not roadmap commitments. Start with the problem or use case rather than a large implementation proposal. Maintainer responses are best-effort.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or limitation
+      description: What is difficult, unsafe, or missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Concrete use case
+      description: Describe when this matters and which agent/runtime or workflow is involved.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What observable result would solve the problem?
+    validations:
+      required: true
+  - type: textarea
+    id: direction
+    attributes:
+      label: Possible direction
+      description: Optional. Suggest an approach if useful, but keep product boundaries and native-agent ownership in mind.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workarounds
+      description: Optional. Note any existing workaround or adjacent tool that already addresses the need.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing issues for a similar request.
+          required: true
+        - label: I understand that opening an issue does not create a response-time, implementation, or roadmap commitment.
+          required: true

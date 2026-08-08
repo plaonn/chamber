@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible Chamber defect
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Chamber is a small maintainer-led project and responses are best-effort. Please provide enough bounded evidence for someone else to reproduce the issue without exposing secrets or private data.
+  - type: input
+    id: chamber-version
+    attributes:
+      label: Chamber version or commit
+      placeholder: "e.g. 05d58dc or v0.x.y"
+    validations:
+      required: true
+  - type: input
+    id: host-version
+    attributes:
+      label: Agent/runtime and version
+      description: Include the relevant host, such as Codex CLI or Gemini CLI.
+      placeholder: "e.g. Codex CLI 0.147.0"
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and impact.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Provide the smallest safe sequence that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Optional. Include only the minimal logs or fixture-shaped evidence needed to diagnose the issue. Remove secrets, credentials, transcripts, private paths, prompts, and sensitive hook payloads.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: This report contains no secrets, credentials, private transcripts, or other sensitive data.
+          required: true
