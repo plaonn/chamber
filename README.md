@@ -4,7 +4,15 @@ Chamber is a local-first audit, policy, and quality-evidence layer around native
 
 The initial MVP supports fixture-validated Codex and Gemini CLI adapters, audit-only policy evaluation, local JSONL traces, and a standalone Node CLI. It deliberately does not own task queues, model prices, quotas, or economic routing.
 
-License: no license has been selected for this repository; no license text is added by this MVP.
+## License and brand
+
+Repository contents are licensed under the [Apache License, Version 2.0](LICENSE) unless otherwise noted.
+
+The software license does not grant rights to present another product or distribution as the official Chamber project. Truthful descriptive use remains allowed; see [TRADEMARKS.md](TRADEMARKS.md) for the lightweight brand-use policy.
+
+## Contributing
+
+Contributions are welcome. Chamber currently uses lightweight maintainer-led governance and does not require a CLA or DCO. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Quick start
 

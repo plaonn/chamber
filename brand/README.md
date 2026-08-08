@@ -127,3 +127,13 @@ Any intentional visual change should update, in the same change:
 4. this document if the design rule changed
 
 Do not manually tweak exported SVGs without reflecting the change in the spec/generator.
+
+## 9. License and brand-use boundary
+
+Repository contents are licensed under the Apache License, Version 2.0 unless otherwise noted. That copyright license does not grant permission to use the Chamber name, symbol, logo, wordmark, or other source-identifying marks as branding for another product or distribution.
+
+The canonical symbol is a project identifier. This document does not claim that the Chamber name or symbol is a registered trademark.
+
+Truthful descriptive use is welcome: referring to Chamber, linking to the project, documenting compatibility, showing the mark in documentation or commentary, or describing an unofficial fork as a fork of Chamber. Modified distributions should use a distinct product identity and must not imply official status, sponsorship, endorsement, or certification.
+
+See [`../TRADEMARKS.md`](../TRADEMARKS.md) for the lightweight project-wide brand policy.
