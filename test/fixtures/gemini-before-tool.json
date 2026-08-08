@@ -1,0 +1,1 @@
+{"hook_event_name":"BeforeTool","hook_event_id":"evt-1","session_id":"gemini-fixture-session","gemini_version":"0.37.2","tool_name":"run_shell_command","tool_input":{"command":"pnpm test"}}

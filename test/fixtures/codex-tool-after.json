@@ -1,0 +1,1 @@
+{"hook_event_name":"PostToolUse","hook_event_id":"evt-1","session_id":"codex-fixture-session","codex_version":"0.147.0","tool_name":"shell_command","tool_input":{"command":"pnpm test"},"tool_response":{"exit_code":0,"output":"Authorization: Bearer secret-value"}}
