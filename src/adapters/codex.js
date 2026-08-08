@@ -50,7 +50,7 @@ export const codexAdapter = createAdapter({
   response(decision, event) {
     const reason = decision.decisions?.find((item) => item.verdict === 'deny')?.reason;
     const name = event.vendor?.hook_event_name;
-    if (decision.action !== 'deny') return name === 'PreToolUse' ? { decision: 'approve' } : {};
+    if (decision.action !== 'deny') return {};
     if (['PreToolUse', 'PostToolUse', 'Stop', 'UserPromptSubmit'].includes(name)) return { decision: 'block', reason };
     return {};
   }

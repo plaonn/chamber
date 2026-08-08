@@ -35,11 +35,11 @@ test('Codex Stop preserves native final response as canonical completion payload
   assert.equal(event.payload.completion_output, 'Tests passed and the implementation is verified.');
 });
 
-test('Codex output is event-aware: PreTool approves, Stop uses no-op or block', async () => {
+test('Codex output is event-aware: audit-only uses no-op, enforcement blocks', async () => {
   const adapter = getAdapter('codex');
   const pre = adapter.normalize({ ...(await fixture('codex-tool-after.json')), hook_event_name: 'PreToolUse' }, { worker_profile: profile(adapter) });
   const stop = await normalize('codex', 'codex-stop.json');
-  assert.deepEqual(adapter.toHostResponse({ action: 'allow' }, pre), { decision: 'approve' });
+  assert.deepEqual(adapter.toHostResponse({ action: 'allow' }, pre), {});
   assert.deepEqual(adapter.toHostResponse({ action: 'deny', decisions: [{ verdict: 'deny', reason: 'policy' }] }, pre), { decision: 'block', reason: 'policy' });
   assert.deepEqual(adapter.toHostResponse({ action: 'allow' }, stop), {});
   assert.deepEqual(adapter.toHostResponse({ action: 'deny', decisions: [{ verdict: 'deny', reason: 'policy' }] }, stop), { decision: 'block', reason: 'policy' });
