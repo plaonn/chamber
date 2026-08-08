@@ -1,43 +1,59 @@
 # Contributing to Chamber
 
-Chamber is currently a small, maintainer-led open-source project. Contributions are welcome, but the project intentionally keeps governance lightweight while the architecture is still settling. Maintainer review and response times are best-effort; opening an issue or pull request does not create a support, merge, or roadmap commitment.
+Thanks for considering a contribution to Chamber.
 
-## Before contributing
+Chamber is intentionally small: it is a local-first audit, policy, and quality-evidence layer around native AI coding agents. It is not an agent runtime, queue, router, or orchestration product. Orca or another orchestrator may be used to launch or interact with native worker sessions, but Chamber should remain independent of those surfaces and observe/control workers through native runtime hooks unless a future requirement explicitly establishes a separate integration contract.
 
-- Read `AGENTS.md` and the relevant architecture/schema documents before changing behavior or public contracts.
-- For substantial changes, prefer opening an issue first so scope and product boundaries can be aligned before implementation.
-- Keep Chamber independent of Orca and any single native agent runtime.
-- Do not include secrets, credentials, private transcripts, private absolute paths, or real sensitive hook payloads in issues, fixtures, commits, or test output.
+## Before opening a change
 
-## Development checks
+- Keep host adapters thin. Vendor-specific field names should be normalized before core policy logic sees them.
+- Preserve the canonical event and evidence contracts unless the change intentionally revises them.
+- Add or update fixtures and tests when adapter, schema, policy, trace, or evidence behavior changes.
+- Keep traces and fixtures sanitized. Do not commit prompts, transcripts, tool output, credentials, API keys, or private runtime data.
+- Do not make tests edit a user's global Codex, Gemini, or other agent configuration. Use isolated config directories and dry-run paths.
 
-Before submitting a code change, run:
+## Development
+
+Requires Node.js 20+ and pnpm.
 
 ```bash
+pnpm install
 pnpm test
 pnpm check
 ```
 
-Add or update fixtures and regression tests when changing adapters, schemas, policy behavior, persistence, or evidence semantics. Pull requests also run these checks automatically in GitHub Actions.
+For the optional Gemini native smoke:
 
-## Contribution license
+```bash
+pnpm smoke:gemini
+```
 
-Repository contents are licensed under the Apache License, Version 2.0 unless otherwise noted.
+The smoke makes a real Gemini CLI model call using the developer's existing authentication, but writes hook configuration only inside a disposable project-local directory and removes that directory afterward.
 
-Unless explicitly agreed otherwise in writing, a contribution intentionally submitted for inclusion in Chamber is provided under the Apache License, Version 2.0, consistent with Section 5 of that license. Contributors retain copyright in their own contributions while granting the rights described by Apache-2.0.
+## Pull requests
 
-Only submit work that you have the right to contribute. Do not submit third-party code, data, images, or other material under terms that are incompatible with this repository.
+A focused pull request should explain:
 
-Chamber currently does **not** require a Contributor License Agreement (CLA) or Developer Certificate of Origin (DCO). That may be revisited only if the project grows to need more formal contribution governance.
+- What behavior or contract changed.
+- Why the change belongs in Chamber rather than a native runtime, orchestrator, or execution-control plane.
+- Which native/runtime versions or documented contracts the change relies on when applicable.
+- What tests or smoke evidence cover the change.
+- Any remaining uncertainty or host-specific limitation.
 
-## Brand changes
+Do not claim a native contract is verified merely because a fixture passes. Real host-registration or lifecycle claims need current native documentation or direct smoke evidence.
 
-Code contribution and brand permission are separate matters. The Apache-2.0 license does not grant trademark or product-name rights.
+## Governance and contribution terms
 
-Changes to the official Chamber symbol or other canonical brand assets require explicit maintainer review and must keep `brand/brand-spec.json`, the generator, canonical exports, and `brand/README.md` consistent. See `TRADEMARKS.md` for brand-use guidance.
+Chamber currently uses lightweight maintainer-led governance. No CLA or DCO sign-off is required at this stage.
 
-## Scope and review
+By submitting a contribution, you agree that your contribution is provided under the repository's Apache License 2.0. You must have the right to submit the code, documentation, or other material you contribute.
 
-A merged contribution becomes part of Chamber's maintained codebase, but merge does not imply that every proposed API, integration, or compatibility claim becomes a permanent project commitment. Maintainers may ask for a smaller scope, additional evidence, compatibility work, or a follow-up change when needed to preserve the project's documented boundaries.
+The maintainer may ask for provenance or licensing clarification when a contribution is unusually large, generated from another source, or appears to incorporate third-party material.
 
-External issues remain public backlog until a maintainer explicitly adopts them. They are not automatically copied into the maintainer's private execution plan or treated as scheduled work.
+## Security and sensitive reports
+
+Do not put credentials, private traces, unreleased proprietary code, or other secrets in public issues or pull requests. Follow [SECURITY.md](SECURITY.md) for sensitive security reports.
+
+## Brand
+
+Code contributions do not grant rights to represent a fork or derivative distribution as the official Chamber project. See [TRADEMARKS.md](TRADEMARKS.md) for the project naming and brand-use policy.
