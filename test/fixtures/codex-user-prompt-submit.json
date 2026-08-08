@@ -1,0 +1,1 @@
+{"hook_event_name":"UserPromptSubmit","session_id":"codex-fixture-session","turn_id":"turn-1","cwd":"/tmp/project","transcript_path":"/tmp/transcript.jsonl","model":"gpt-5-codex","permission_mode":"default","prompt":"Implement a feature"}

@@ -74,11 +74,22 @@ test('enforcement creates Gemini retry and degrades when the event cannot block'
   assert.deepEqual(degraded.degraded, ['can_block']);
 });
 
-test('native-shaped failed and cancelled Gemini checks are not deterministic success evidence', async () => {
+test('native-shaped failed, cancelled, and signalled Gemini checks are not deterministic success evidence', async () => {
   const profile = { host: 'gemini', policy_revision: '1' };
-  const events = [await normalize('codex', 'codex-tool-after.json'), await normalize('gemini', 'gemini-after-tool.json'), await normalize('gemini', 'gemini-after-tool-failed.json'), await normalize('gemini', 'gemini-after-tool-cancelled.json')];
+  const events = [await normalize('codex', 'codex-tool-after.json'), await normalize('gemini', 'gemini-after-tool.json'), await normalize('gemini', 'gemini-after-tool-failed.json'), await normalize('gemini', 'gemini-after-tool-cancelled.json'), await normalize('gemini', 'gemini-after-tool-signal.json')];
   assert.equal(events[2].payload.verification.execution, 'failed'); assert.equal(events[3].payload.verification.execution, 'unknown');
+  assert.equal(events[4].payload.verification.execution, 'failed'); assert.equal(events[4].payload.verification.provenance, 'gemini.shell.tool-result.signal');
   assert.equal(qualityEvidence(events, profile).verification_evidence_count, 1);
+});
+
+test('persisted session classification retains a prior native prompt class when Stop is unknown', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-class-')); const adapter = getAdapter('codex'); const store = new TraceStore(dir);
+  const prompt = await normalize('codex', 'codex-user-prompt-submit.json'); const stop = await normalize('codex', 'codex-stop.json');
+  await store.append({ kind: 'canonical_event', event: prompt, policy_decision: {} }); await store.append({ kind: 'canonical_event', event: stop, policy_decision: {} });
+  const events = (await store.query({ sessionId: prompt.session_id })).map((record) => record.event);
+  const evidence = qualityEvidence(events, profile(adapter));
+  assert.equal(prompt.payload.task_classification.value, 'implementation'); assert.equal(stop.payload.task_classification.value, 'unknown');
+  assert.equal(evidence.task_class, 'implementation'); assert.equal(evidence.provenance.task_classification.provenance, 'ephemeral.prompt-and-command'); await rm(dir, { recursive: true });
 });
 
 test('trace projection never persists synthetic prompt, command, output, or raw vendor data by default', async () => {

@@ -28,8 +28,10 @@ export function geminiAfterToolVerification({ command, toolName, toolInput, tool
 
   const data = toolResponse.data;
   const cancelled = textContains(toolResponse.llmContent, /\bcancelled\b/i) || textContains(toolResponse.returnDisplay, /\bcancelled\b/i);
+  const signalled = textContains(toolResponse.llmContent, /\bsignal:\s*\S+/i) || textContains(toolResponse.returnDisplay, /\bterminated by signal\b/i);
   const background = toolInput?.is_background === true || (data && typeof data === 'object' && Number.isInteger(data.pid));
   if (cancelled) return unknownVerification(command, 'gemini.shell.tool-result.cancelled', 'cancelled');
+  if (signalled) return { classification: 'recognized-check', execution: 'failed', source: 'native-hook', provenance: 'gemini.shell.tool-result.signal' };
   if (background) return unknownVerification(command, 'gemini.shell.tool-result.background', 'background-or-incomplete');
   if (toolResponse.error || data?.isError === true || (Number.isInteger(data?.exitCode) && data.exitCode !== 0)) {
     return { classification: 'recognized-check', execution: 'failed', source: 'native-hook', provenance: 'gemini.shell.tool-result.error-or-nonzero' };

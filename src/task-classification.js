@@ -16,7 +16,8 @@ export function classifyEphemeralTask({ prompt, command } = {}) {
 }
 
 export function persistedTaskClass(events) {
-  return [...events].reverse().map((event) => event.payload?.task_classification).find(Boolean) ?? {
+  const classifications = [...events].reverse().map((event) => event.payload?.task_classification).filter(Boolean);
+  return classifications.find((classification) => classification.value !== 'unknown') ?? classifications[0] ?? {
     value: 'unknown', revision: CLASSIFICATION_REVISION, provenance: 'no-persisted-classification'
   };
 }

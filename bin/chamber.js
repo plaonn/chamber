@@ -6,6 +6,7 @@ import { TraceStore } from '../src/trace-store.js';
 import { DEFAULT_POLICY_PROFILE, evaluatePolicy } from '../src/policy.js';
 import { qualityEvidence } from '../src/evidence.js';
 import { createEvent } from '../src/schema.js';
+import { persistedTaskClass } from '../src/task-classification.js';
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => { const index = args.indexOf(name); return index < 0 ? fallback : args[index + 1]; };
@@ -74,7 +75,7 @@ async function outcome() {
   if (!exemplar) throw new Error('outcome requires an existing session trace');
   const event = createEvent({
     session_id: sessionId, lifecycle: 'outcome', host: exemplar.host, worker_profile: exemplar.worker_profile,
-    payload: { status, outcome_provenance: 'operator.explicit-v1', task_classification: exemplar.payload?.task_classification },
+    payload: { status, outcome_provenance: 'operator.explicit-v1', task_classification: persistedTaskClass(history) },
     vendor: { hook_event_name: 'ChamberOutcome' }
   });
   await store.append({ kind: 'outcome', event, policy_decision: { action: 'observe' } });
