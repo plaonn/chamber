@@ -1,8 +1,10 @@
 {
   "name": "Chamber",
-  "asset_version": "chamber-symbol-v1",
+  "asset_version": "chamber-brand-v1",
+  "symbol_version": "chamber-symbol-v1",
+  "wordmark_version": "chamber-wordmark-v1",
   "status": "canonical",
-  "scope": "symbol only; wordmark and typography intentionally unspecified",
+  "scope": "symbol, custom wordmark, and horizontal lockup",
   "geometry": {
     "canvas": {
       "width": 320,
@@ -12,14 +14,38 @@
       "chamfer": 54,
       "corner_radius": 10,
       "points": [
-        [54, 0],
-        [266, 0],
-        [320, 54],
-        [320, 266],
-        [266, 320],
-        [54, 320],
-        [0, 266],
-        [0, 54]
+        [
+          54,
+          0
+        ],
+        [
+          266,
+          0
+        ],
+        [
+          320,
+          54
+        ],
+        [
+          320,
+          266
+        ],
+        [
+          266,
+          320
+        ],
+        [
+          54,
+          320
+        ],
+        [
+          0,
+          266
+        ],
+        [
+          0,
+          54
+        ]
       ]
     },
     "frame_width": 50,
@@ -29,11 +55,69 @@
       "corner_radius": 7.5
     },
     "wedge": {
-      "apex": [160, 160],
+      "apex": [
+        160,
+        160
+      ],
       "direction": "right",
       "half_angle_degrees": 34,
       "base_x": 380,
       "clip_to_outer_octagon": true
+    }
+  },
+  "wordmark": {
+    "text": "Chamber",
+    "construction": "custom outlines; no font dependency",
+    "capital_c": {
+      "source": "canonical chamber frame with the 34-degree wedge removed",
+      "height": 240,
+      "visual_right": 238.3
+    },
+    "metrics": {
+      "height": 240,
+      "baseline": 240,
+      "x_height": 154,
+      "ascender_top": 32,
+      "module_width_W": 116.5,
+      "orthogonal_inset_T": 37.5,
+      "outer_chamfer_45": 40.5,
+      "inner_chamfer_45": 27.0,
+      "diagonal_line_delta": 61.5,
+      "diagonal_normal_thickness": 43.487067
+    },
+    "widths": {
+      "h": 116.5,
+      "a": 154.0,
+      "m": 195.5,
+      "b": 116.5,
+      "e": 116.5,
+      "r": 116.5
+    },
+    "width_rules": {
+      "basic_module": "h, b, e, and r each use W",
+      "a": "W + T",
+      "m": "2W - T; two W modules sharing one T stem"
+    },
+    "tracking": {
+      "capital_c_to_h": 41.0,
+      "lowercase_pairs": 31.0
+    },
+    "a": {
+      "counter": "square counter, symmetric about the lower-left to upper-right 45-degree axis",
+      "separator": "isosceles-right triangular notch with both sides at 45 degrees",
+      "diagonal_rule": "inherits the canonical mark outer/inner 45-degree line delta"
+    },
+    "r": {
+      "selected_terminal": "equal-horizontal-vertical",
+      "horizontal_component": 30.75,
+      "vertical_component": 30.75,
+      "upper_split_y": 134.25,
+      "rule": "H + V = diagonal_line_delta; selected H = V"
+    },
+    "lockup": {
+      "symbol_height": 240,
+      "wordmark_height": 240,
+      "symbol_to_wordmark_gap": 55
     }
   },
   "palette": {
@@ -43,6 +127,7 @@
     "rose": "#E45E9A",
     "frame_base": "#58558F",
     "wedge_base": "#68578F",
+    "wordmark_base": "#7162B1",
     "dark_background": "#111322",
     "light_background": "#FFFFFF",
     "monochrome_dark": "#222433",
@@ -50,36 +135,146 @@
   },
   "aurora": {
     "radial_stop_profile": [
-      {"offset": 0.0, "opacity_multiplier": 1.0},
-      {"offset": 0.56, "opacity_multiplier": 0.42},
-      {"offset": 1.0, "opacity_multiplier": 0.0}
+      {
+        "offset": 0.0,
+        "opacity_multiplier": 1.0
+      },
+      {
+        "offset": 0.56,
+        "opacity_multiplier": 0.42
+      },
+      {
+        "offset": 1.0,
+        "opacity_multiplier": 0.0
+      }
     ],
     "frame_field": [
-      {"color": "indigo", "cx": 245, "cy": 62, "r": 180, "peak_opacity": 0.72},
-      {"color": "orchid", "cx": 120, "cy": 270, "r": 216, "peak_opacity": 0.71},
-      {"color": "rose", "cx": 36, "cy": 165, "r": 195, "peak_opacity": 0.56},
-      {"color": "violet", "cx": 166, "cy": 168, "r": 210, "peak_opacity": 0.69}
+      {
+        "color": "indigo",
+        "cx": 245,
+        "cy": 62,
+        "r": 180,
+        "peak_opacity": 0.72
+      },
+      {
+        "color": "orchid",
+        "cx": 120,
+        "cy": 270,
+        "r": 216,
+        "peak_opacity": 0.71
+      },
+      {
+        "color": "rose",
+        "cx": 36,
+        "cy": 165,
+        "r": 195,
+        "peak_opacity": 0.56
+      },
+      {
+        "color": "violet",
+        "cx": 166,
+        "cy": 168,
+        "r": 210,
+        "peak_opacity": 0.69
+      }
     ],
     "wedge_field": [
-      {"color": "rose", "cx": 292, "cy": 92, "r": 150, "peak_opacity": 0.76},
-      {"color": "orchid", "cx": 232, "cy": 108, "r": 165, "peak_opacity": 0.7},
-      {"color": "indigo", "cx": 286, "cy": 236, "r": 160, "peak_opacity": 0.72},
-      {"color": "violet", "cx": 220, "cy": 205, "r": 185, "peak_opacity": 0.66}
+      {
+        "color": "rose",
+        "cx": 292,
+        "cy": 92,
+        "r": 150,
+        "peak_opacity": 0.76
+      },
+      {
+        "color": "orchid",
+        "cx": 232,
+        "cy": 108,
+        "r": 165,
+        "peak_opacity": 0.7
+      },
+      {
+        "color": "indigo",
+        "cx": 286,
+        "cy": 236,
+        "r": 160,
+        "peak_opacity": 0.72
+      },
+      {
+        "color": "violet",
+        "cx": 220,
+        "cy": 205,
+        "r": 185,
+        "peak_opacity": 0.66
+      }
     ],
     "design_rule": "frame and wedge share the same narrow palette but use independently arranged aurora fields; differentiation comes from spatial color distribution, not large luminance separation"
   },
+  "wordmark_aurora": {
+    "radial_stop_profile": [
+      {
+        "offset": 0.0,
+        "opacity_multiplier": 1.0
+      },
+      {
+        "offset": 0.62,
+        "opacity_multiplier": 0.34
+      },
+      {
+        "offset": 1.0,
+        "opacity_multiplier": 0.0
+      }
+    ],
+    "hotspots": [
+      {
+        "color": "indigo",
+        "cx_ratio": 0.05,
+        "cy_ratio": 0.3,
+        "r_width_ratio": 0.42,
+        "peak_opacity": 0.96
+      },
+      {
+        "color": "violet",
+        "cx_ratio": 0.36,
+        "cy_ratio": 0.2,
+        "r_width_ratio": 0.4,
+        "peak_opacity": 0.82
+      },
+      {
+        "color": "orchid",
+        "cx_ratio": 0.68,
+        "cy_ratio": 0.72,
+        "r_width_ratio": 0.39,
+        "peak_opacity": 0.76
+      },
+      {
+        "color": "rose",
+        "cx_ratio": 0.98,
+        "cy_ratio": 0.38,
+        "r_width_ratio": 0.36,
+        "peak_opacity": 0.88
+      }
+    ],
+    "design_rule": "use the same narrow palette as the symbol with a calmer, broader independent field across the wordmark"
+  },
   "usage": {
-    "clear_space": "at least 1/8 of mark width around the outer octagon",
+    "clear_space": "at least 1/8 of mark height around standalone marks and lockups",
     "preferred_minimum_size_px": 32,
-    "tiny_size_guidance": "at 24px and below prefer the monochrome mark if aurora separation becomes muddy",
-    "backgrounds": ["light neutral", "dark neutral"],
+    "tiny_size_guidance": "at 24px and below prefer monochrome assets if aurora separation becomes muddy",
+    "backgrounds": [
+      "light neutral",
+      "dark neutral"
+    ],
     "avoid": [
       "changing the 34-degree wedge geometry",
+      "treating 34 degrees as the general alphabet angle; frame and wordmark bevels use 45 degrees",
       "introducing prominent green",
-      "replacing the two independent aurora fields with one continuous field",
+      "replacing the two independent symbol aurora fields with one continuous field",
       "large frame/wedge luminance separation",
       "moving warm color mass to the right solely to force boundary contrast",
-      "adding a central sparkle/diamond or AI-brain/circuit motif"
+      "adding a central sparkle/diamond or AI-brain/circuit motif",
+      "replacing the custom wordmark with a font",
+      "redrawing the canonical symbol generatively"
     ]
   }
 }
