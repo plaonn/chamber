@@ -9,6 +9,7 @@ import { getAdapter } from '../src/adapters/index.js';
 import { evidenceSelection, qualityEvidence, traceSummary } from '../src/evidence.js';
 import { DEFAULT_POLICY_PROFILE, evaluatePolicy } from '../src/policy.js';
 import { TraceStore } from '../src/trace-store.js';
+import { inspectCodexHookRegistration } from '../src/operator.js';
 import { resolveStateDir } from '../src/state.js';
 
 const exec = promisify(execFile);
@@ -186,5 +187,13 @@ test('doctor reports fixture hook registration without claiming global configura
   const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
   const doctor = JSON.parse((await exec(process.execPath, [cli, 'doctor', '--state-dir', dir, '--config-dir', configDir])).stdout);
   assert.equal(doctor.codex_hook.registration, 'registered'); assert.equal(doctor.codex_hook.entrypoint, 'registered'); assert.equal('global_config_modified' in doctor, false);
+  await rm(dir, { recursive: true });
+});
+
+test('hook diagnostics expand HOME in a stable entrypoint command', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-hook-home-')); const configDir = join(dir, 'config'); await mkdir(configDir);
+  const homeDirectory = join(dir, 'home'); await mkdir(homeDirectory); await writeFile(join(homeDirectory, 'chamber.js'), '');
+  await writeFile(join(configDir, 'hooks.json'), JSON.stringify({ Stop: [{ hooks: [{ type: 'command', command: 'node $HOME/chamber.js hook --host codex' }] }] }));
+  assert.deepEqual(await inspectCodexHookRegistration({ configDir, homeDirectory }), { registration: 'registered', entrypoint: 'registered' });
   await rm(dir, { recursive: true });
 });

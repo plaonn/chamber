@@ -8,12 +8,12 @@ function hookCommands(value) {
   return [value.command, ...Object.values(value).flatMap(hookCommands)].filter((command) => typeof command === 'string');
 }
 
-function executablePath(command) {
+function executablePath(command, homeDirectory) {
   const match = command.match(/\bnode\s+(['"]?)([^'"\s]+\.js)\1/);
-  return match?.[2];
+  return match?.[2]?.replace(/^\$HOME(?=\/)/, homeDirectory);
 }
 
-export async function inspectCodexHookRegistration({ configDir = join(homedir(), '.codex') } = {}) {
+export async function inspectCodexHookRegistration({ configDir = join(homedir(), '.codex'), homeDirectory = homedir() } = {}) {
   const path = join(configDir, 'hooks.json');
   let config;
   try {
@@ -23,7 +23,7 @@ export async function inspectCodexHookRegistration({ configDir = join(homedir(),
   }
   const command = hookCommands(config).find((candidate) => /\bchamber(?:\s|$)|\/chamber\.js\b/i.test(candidate));
   if (!command) return { registration: 'absent', entrypoint: 'absent' };
-  const entrypoint = executablePath(command);
+  const entrypoint = executablePath(command, homeDirectory);
   if (!entrypoint) return { registration: 'registered', entrypoint: 'unverified' };
   try {
     await stat(entrypoint);
