@@ -5,18 +5,21 @@ import { getAdapter, listAdapters } from '../src/adapters/index.js';
 import { TraceStore } from '../src/trace-store.js';
 import { DEFAULT_POLICY_PROFILE, evaluatePolicy } from '../src/policy.js';
 import { qualityEvidence } from '../src/evidence.js';
+import { createEvent } from '../src/schema.js';
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => { const index = args.indexOf(name); return index < 0 ? fallback : args[index + 1]; };
 const has = (name) => args.includes(name);
 const output = (value) => process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
-const usage = () => console.log(`Usage: chamber <hosts|doctor|trace|evidence|normalize|install|uninstall|demo> [options]
+const usage = () => console.log(`Usage: chamber <hosts|doctor|trace|evidence|outcome|normalize|install|uninstall|demo> [options]
 
 Commands:
   hosts                         list adapter capability matrices
   doctor [--state-dir DIR]      inspect local state and adapters
   trace [--state-dir DIR]       query redacted trace records
   evidence [--state-dir DIR]    export session quality evidence
+  outcome --session-id ID --status accepted|rejected|unknown
+                                record explicit, transcript-free outcome feedback
   normalize --host H --input F  normalize a host fixture/event and record audit
   hook --host H                  stdin/stdout native-hook entrypoint
   install --host H [--config-dir DIR] [--dry-run]
@@ -62,6 +65,22 @@ async function hook() {
   output(adapter.toHostResponse(decision, event));
 }
 
+async function outcome() {
+  const sessionId = option('--session-id'); const status = option('--status');
+  if (!sessionId) throw new Error('outcome requires --session-id');
+  if (!['accepted', 'rejected', 'unknown'].includes(status)) throw new Error('outcome status must be accepted, rejected, or unknown');
+  const store = new TraceStore(resolve(option('--state-dir', '.chamber')));
+  const history = await store.query({ sessionId }); const exemplar = history.at(-1)?.event;
+  if (!exemplar) throw new Error('outcome requires an existing session trace');
+  const event = createEvent({
+    session_id: sessionId, lifecycle: 'outcome', host: exemplar.host, worker_profile: exemplar.worker_profile,
+    payload: { status, outcome_provenance: 'operator.explicit-v1', task_classification: exemplar.payload?.task_classification },
+    vendor: { hook_event_name: 'ChamberOutcome' }
+  });
+  await store.append({ kind: 'outcome', event, policy_decision: { action: 'observe' } });
+  output({ recorded: true, session_id: sessionId, status, provenance: 'operator.explicit-v1' });
+}
+
 async function install(remove = false) {
   const host = option('--host'); getAdapter(host);
   const path = await configPath(host); const current = await exists(path) ? JSON.parse(await readFile(path, 'utf8')) : { schema_version: 'chamber.install.v1', hooks: [] };
@@ -91,6 +110,7 @@ async function main() {
   if (command === 'doctor') { const store = new TraceStore(resolve(option('--state-dir', '.chamber'))); return output({ state_dir: store.stateDir, trace_records: (await store.query()).length, adapters: listAdapters().map((adapter) => adapter.id), global_config_modified: false }); }
   if (command === 'trace') { const store = new TraceStore(resolve(option('--state-dir', '.chamber'))); return output(await store.query({ sessionId: option('--session-id'), limit: Number(option('--limit', '100')) })); }
   if (command === 'evidence') { const store = new TraceStore(resolve(option('--state-dir', '.chamber'))); const records = await store.query({ sessionId: option('--session-id') }); const events = records.map((record) => record.event).filter(Boolean); return output(qualityEvidence(events, events[0]?.worker_profile ?? { host: 'unknown', policy_revision: 'unknown' })); }
+  if (command === 'outcome') return outcome();
   if (command === 'normalize') return normalize();
   if (command === 'hook') return hook();
   if (command === 'install') return install(false);

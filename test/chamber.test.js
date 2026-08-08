@@ -21,10 +21,12 @@ const fixture = async (name) => JSON.parse(await readFile(new URL(`./fixtures/${
 const profile = (adapter) => ({ host: adapter.id, agent_runtime: adapter.id, model: 'fixture', host_version: 'fixture', adapter_revision: adapter.revision, policy_profile: 'audit-default', policy_revision: '1', config_revision: 'fixture' });
 const normalize = async (host, name) => { const adapter = getAdapter(host); return adapter.normalize(await fixture(name), { worker_profile: profile(adapter) }); };
 
-test('Codex PostToolUse and Gemini tool fixtures normalize into canonical tool events', async () => {
-  assert.equal((await normalize('codex', 'codex-tool-after.json')).lifecycle, 'tool.after');
+test('native-shaped Codex and Gemini tool fixtures normalize into canonical tool events', async () => {
+  const codex = await normalize('codex', 'codex-tool-after.json'); const gemini = await normalize('gemini', 'gemini-after-tool.json');
+  assert.equal(codex.lifecycle, 'tool.after'); assert.equal(codex.payload.verification.execution, 'unknown');
+  assert.equal(codex.payload.verification.limitation, 'exact-exit-status-unsupported');
   assert.equal((await normalize('gemini', 'gemini-before-tool.json')).lifecycle, 'tool.before');
-  assert.equal((await normalize('gemini', 'gemini-after-tool.json')).lifecycle, 'tool.after');
+  assert.equal(gemini.lifecycle, 'tool.after'); assert.equal(gemini.payload.verification.execution, 'passed');
 });
 
 test('Codex Stop preserves native final response as canonical completion payload', async () => {
@@ -56,9 +58,9 @@ test('audit-only observes unsupported final completion claims without changing b
   assert.equal(result.action, 'audit'); assert.deepEqual(result.degraded, ['audit-only']);
 });
 
-test('completion validation accepts a native final response after a recognized successful check', async () => {
+test('completion validation consumes normalized native successful-check history', async () => {
   const adapter = getAdapter('gemini'); const event = await normalize('gemini', 'gemini-after-agent.json');
-  const history = [{ lifecycle: 'tool.after', payload: { verification: { classification: 'recognized-check', execution: 'passed', provenance: 'host.tool_response.exit_code' } } }];
+  const history = [await normalize('gemini', 'gemini-after-tool.json')];
   const result = evaluatePolicy(event, history, { ...DEFAULT_POLICY_PROFILE, mode: 'enforce' }, adapter.capabilitiesFor(event));
   assert.equal(result.action, 'allow');
 });
@@ -72,13 +74,10 @@ test('enforcement creates Gemini retry and degrades when the event cannot block'
   assert.deepEqual(degraded.degraded, ['can_block']);
 });
 
-test('only recognized successful checks count as verification evidence', () => {
+test('native-shaped failed and cancelled Gemini checks are not deterministic success evidence', async () => {
   const profile = { host: 'gemini', policy_revision: '1' };
-  const events = [
-    { lifecycle: 'tool.after', payload: { verification: { classification: 'unclassified', execution: 'passed' } } },
-    { lifecycle: 'tool.after', payload: { verification: { classification: 'recognized-check', execution: 'unknown' } } },
-    { lifecycle: 'tool.after', payload: { verification: { classification: 'recognized-check', execution: 'passed' } } }
-  ];
+  const events = [await normalize('codex', 'codex-tool-after.json'), await normalize('gemini', 'gemini-after-tool.json'), await normalize('gemini', 'gemini-after-tool-failed.json'), await normalize('gemini', 'gemini-after-tool-cancelled.json')];
+  assert.equal(events[2].payload.verification.execution, 'failed'); assert.equal(events[3].payload.verification.execution, 'unknown');
   assert.equal(qualityEvidence(events, profile).verification_evidence_count, 1);
 });
 
@@ -89,7 +88,7 @@ test('trace projection never persists synthetic prompt, command, output, or raw 
   const store = new TraceStore(dir); await store.append({ kind: 'canonical_event', event, policy_decision: {}, raw_vendor_event: { secret: 'SECRET_RAW_DEF', nested: { token: 'SECRET_NESTED_GHI' } } });
   const text = await readFile(join(dir, 'trace.jsonl'), 'utf8');
   for (const secret of ['SECRET_PROMPT_123', 'SECRET_OUTPUT_456', 'SECRET_COMMAND_789', 'SECRET_VENDOR_ABC', 'SECRET_RAW_DEF', 'SECRET_NESTED_GHI']) assert.doesNotMatch(text, new RegExp(secret));
-  assert.doesNotMatch(text, /raw_vendor_event/); assert.match(text, /"raw_vendor_recorded":false/); assert.match(text, /minimized-v2/); await rm(dir, { recursive: true });
+  assert.doesNotMatch(text, /raw_vendor_event/); assert.match(text, /"raw_vendor_recorded":false/); assert.match(text, /minimized-v2/); assert.match(text, /task_classification/); await rm(dir, { recursive: true });
 });
 
 test('raw vendor recording is an explicit debug opt-in and redacts synthetic secret fields', async () => {
@@ -115,4 +114,16 @@ test('isolated install and uninstall are reversible without global configuration
   assert.equal((await run('install', '--host', 'gemini', '--config-dir', dir, '--dry-run')).dry_run, true);
   assert.equal((await run('install', '--host', 'gemini', '--config-dir', dir)).config.hooks[0].id, 'chamber');
   assert.equal((await run('uninstall', '--host', 'gemini', '--config-dir', dir)).config.hooks.length, 0); await rm(dir, { recursive: true });
+});
+
+test('explicit outcome recording preserves session worker provenance without transcript text', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-outcome-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  const raw = JSON.stringify({ hook_event_name: 'AfterAgent', session_id: 'outcome-session', prompt: 'Implement a feature', prompt_response: 'done', stop_hook_active: false });
+  await runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], raw, { env: { ...process.env, CHAMBER_STATE_DIR: dir } });
+  const response = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--session-id', 'outcome-session', '--status', 'accepted'])).stdout);
+  assert.equal(response.recorded, true);
+  const records = JSON.parse((await exec(process.execPath, [cli, 'trace', '--state-dir', dir, '--session-id', 'outcome-session'])).stdout);
+  const outcome = records.at(-1).event; assert.equal(outcome.lifecycle, 'outcome'); assert.equal(outcome.payload.status, 'accepted');
+  const evidence = JSON.parse((await exec(process.execPath, [cli, 'evidence', '--state-dir', dir, '--session-id', 'outcome-session'])).stdout);
+  assert.equal(evidence.outcome, 'accepted'); assert.equal(evidence.task_class, 'implementation'); await rm(dir, { recursive: true });
 });

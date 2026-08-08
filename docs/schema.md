@@ -9,10 +9,10 @@ Required fields: `event_id`, `occurred_at`, `session_id`, `lifecycle`, `host`, a
   "schema_version": "chamber.event.v1",
   "session_id": "example-session",
   "lifecycle": "tool.after",
-  "host": {"runtime": "codex", "version": "0.147.0", "adapter_revision": "codex-hook-v1"},
-  "worker_profile": {"host": "codex", "agent_runtime": "codex-cli", "model": "unknown", "host_version": "0.147.0", "adapter_revision": "codex-hook-v1", "policy_profile": "audit-default", "policy_revision": "1", "config_revision": "unknown"},
-  "payload": {"command": "pnpm test", "exit_code": 0},
-  "vendor": {"raw_type": "tool.after"}
+  "host": {"runtime": "codex", "version": "0.147.0", "adapter_revision": "codex-hook-v2"},
+  "worker_profile": {"host": "codex", "agent_runtime": "codex-cli", "model": "unknown", "host_version": "0.147.0", "adapter_revision": "codex-hook-v2", "policy_profile": "audit-default", "policy_revision": "1", "config_revision": "unknown"},
+  "payload": {"verification": {"classification": "recognized-check", "execution": "unknown", "source": "native-hook", "provenance": "codex.post-tool-use.output-only", "limitation": "exact-exit-status-unsupported"}},
+  "vendor": {"hook_event_name": "PostToolUse"}
 }
 ```
 
@@ -22,4 +22,4 @@ Contains `worker_profile`, `task_class`, execution `outcome`, deterministic veri
 
 ## `chamber.trace.v2`
 
-The persisted trace is a safe projection, stamped `persistence_revision: "minimized-v2"` and `persistence.mode: "allowlist-minimized"`. It also records whether raw vendor storage was opted in and that redaction remains a defense-in-depth layer. It stores no prompt, final assistant output, command text, tool output, arbitrary tool input, or raw vendor payload by default. A tool record can retain only `{classification, execution, provenance}` for verification. This boundary is intentional: raw data is an in-memory adapter/policy input, not ordinary local telemetry.
+The persisted trace is a safe projection, stamped `persistence_revision: "minimized-v2"` and `persistence.mode: "allowlist-minimized"`. It also records whether raw vendor storage was opted in and that redaction remains a defense-in-depth layer. It stores no prompt, final assistant output, command text, tool output, arbitrary tool input, or raw vendor payload by default. A tool record can retain only `{classification, execution, source, provenance, limitation}` for verification. It may retain only bounded `task_classification` `{value, revision, provenance}` and bounded outcome `{status, outcome_provenance}`. This boundary is intentional: raw data is an in-memory adapter/policy input, not ordinary local telemetry.

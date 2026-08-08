@@ -1,7 +1,8 @@
 import { createAdapter } from './base.js';
 import { createEvent } from '../schema.js';
 import { capabilities } from '../capabilities.js';
-import { verificationFromTool } from '../verification.js';
+import { codexPostToolVerification } from '../verification.js';
+import { classifyEphemeralTask } from '../task-classification.js';
 
 function lifecycle(name) {
   return ({ SessionStart: 'session.start', UserPromptSubmit: 'prompt.submit', PreToolUse: 'tool.before', PostToolUse: 'tool.after', Stop: 'finish.before', SessionEnd: 'session.end' })[name];
@@ -40,7 +41,8 @@ export const codexAdapter = createAdapter({
         tool_name: raw.tool_name,
         command: raw.tool_input?.command,
         tool_response: raw.tool_response,
-        verification: verificationFromTool({ command: raw.tool_input?.command, toolName: raw.tool_name, toolResponse: raw.tool_response })
+        verification: codexPostToolVerification({ command: raw.tool_input?.command, toolName: raw.tool_name }),
+        task_classification: classifyEphemeralTask({ prompt: raw.prompt, command: raw.tool_input?.command })
       },
       vendor: { hook_event_name: raw.hook_event_name, tool_use_id: raw.tool_use_id }
     });

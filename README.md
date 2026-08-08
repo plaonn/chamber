@@ -17,6 +17,7 @@ node bin/chamber.js hosts
 node bin/chamber.js doctor --state-dir .chamber-demo
 node bin/chamber.js trace --state-dir .chamber-demo
 node bin/chamber.js evidence --state-dir .chamber-demo
+node bin/chamber.js outcome --state-dir .chamber-demo --session-id SESSION_ID --status accepted
 pnpm smoke:gemini
 ```
 
@@ -58,3 +59,5 @@ pnpm check
 ```
 
 Fixtures are sanitized and do not invoke external agent runtimes. See `test/fixtures/`.
+
+`outcome` records only an explicit bounded status (`accepted`, `rejected`, or `unknown`) against an existing traced session. It reuses that session's worker provenance and stores neither reviewer feedback nor transcripts.

@@ -19,8 +19,13 @@ function persistedEvent(event) {
       verification: verification ? {
         classification: verification.classification,
         execution: verification.execution,
-        provenance: verification.provenance
-      } : undefined
+        source: verification.source,
+        provenance: verification.provenance,
+        limitation: verification.limitation
+      } : undefined,
+      task_classification: event.payload?.task_classification,
+      status: event.payload?.status,
+      outcome_provenance: event.payload?.outcome_provenance
     },
     vendor: { hook_event_name: event.vendor?.hook_event_name }
   };

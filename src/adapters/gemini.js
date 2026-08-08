@@ -1,7 +1,8 @@
 import { createAdapter } from './base.js';
 import { createEvent } from '../schema.js';
 import { capabilities } from '../capabilities.js';
-import { verificationFromTool } from '../verification.js';
+import { geminiAfterToolVerification } from '../verification.js';
+import { classifyEphemeralTask } from '../task-classification.js';
 
 function lifecycle(name) {
   return ({ SessionStart: 'session.start', SessionEnd: 'session.end', BeforeTool: 'tool.before', AfterTool: 'tool.after', BeforeAgent: 'prompt.submit', AfterAgent: 'finish.before', BeforeModel: 'model.before', AfterModel: 'model.after' })[name];
@@ -42,7 +43,8 @@ export const geminiAdapter = createAdapter({
         tool_name: tool,
         command: raw.tool_input?.command,
         tool_response: raw.tool_response,
-        verification: verificationFromTool({ command: raw.tool_input?.command, toolName: tool, toolResponse: raw.tool_response })
+        verification: geminiAfterToolVerification({ command: raw.tool_input?.command, toolName: tool, toolInput: raw.tool_input, toolResponse: raw.tool_response }),
+        task_classification: classifyEphemeralTask({ prompt: raw.prompt, command: raw.tool_input?.command })
       },
       vendor: { hook_event_name: raw.hook_event_name }
     });
