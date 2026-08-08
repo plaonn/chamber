@@ -28,10 +28,7 @@ def flattened_wordmark(background, title):
     title_node = ET.SubElement(root, Q("title"), {"id": "title"})
     title_node.text = title
     desc_node = ET.SubElement(root, Q("desc"), {"id": "desc"})
-    desc_node.text = (
-        "Canonical Chamber symbol-as-C wordmark on a fixed brand background. "
-        "The wordmark geometry is inlined so blend behavior is evaluated against that background."
-    )
+    desc_node.text = "Canonical Chamber symbol-as-C wordmark on a fixed brand background."
     ET.SubElement(
         root,
         Q("rect"),
@@ -53,13 +50,12 @@ def flattened_wordmark(background, title):
 
 def social_preview_source():
     return (
-        f'<svg xmlns="{SVG_NS}" viewBox="0 0 1280 640" role="img" '
-        'aria-labelledby="title desc">'
-        '<title id="title">Chamber social preview</title>'
-        '<desc id="desc">Chamber wordmark centered on the canonical dark brand background.</desc>'
-        '<rect width="1280" height="640" rx="48" fill="#111322"/>'
+        f'<svg xmlns="{SVG_NS}" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">\n'
+        '<title id="title">Chamber social preview</title>\n'
+        '<desc id="desc">Chamber wordmark centered on the canonical dark brand background.</desc>\n'
+        '<rect width="1280" height="640" rx="48" fill="#111322"/>\n'
         '<image href="chamber-readme-dark.svg" x="64" y="166" width="1152" height="308" '
-        'preserveAspectRatio="xMidYMid meet"/>'
+        'preserveAspectRatio="xMidYMid meet"/>\n'
         '</svg>\n'
     )
 
