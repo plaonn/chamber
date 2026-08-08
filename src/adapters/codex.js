@@ -3,6 +3,7 @@ import { createEvent } from '../schema.js';
 import { capabilities } from '../capabilities.js';
 import { codexPostToolVerification } from '../verification.js';
 import { classifyEphemeralTask } from '../task-classification.js';
+import { unknownNativeControls } from '../effective-worker.js';
 
 function lifecycle(name) {
   return ({ SessionStart: 'session.start', UserPromptSubmit: 'prompt.submit', PreToolUse: 'tool.before', PostToolUse: 'tool.after', Stop: 'finish.before', SessionEnd: 'session.end' })[name];
@@ -33,7 +34,7 @@ export const codexAdapter = createAdapter({
       session_id: raw.session_id ?? context.session_id,
       lifecycle: mapped,
       host: { runtime: 'codex', version: raw.codex_version ?? context.host_version ?? '0.147.0', adapter_revision: 'codex-hook-v2' },
-      worker_profile: context.worker_profile,
+      worker_profile: { ...context.worker_profile, native_controls: context.worker_profile.native_controls ?? unknownNativeControls('adapter-control-not-observed') },
       payload: {
         prompt: raw.prompt,
         completion_output: raw.last_assistant_message,

@@ -9,6 +9,7 @@ import { createEvent } from '../src/schema.js';
 import { persistedTaskClass } from '../src/task-classification.js';
 import { inspectCodexHookRegistration } from '../src/operator.js';
 import { resolveStateDir } from '../src/state.js';
+import { unknownNativeControls } from '../src/effective-worker.js';
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => { const index = args.indexOf(name); return index < 0 ? fallback : args[index + 1]; };
@@ -37,7 +38,8 @@ function profile(adapter, overrides = {}) {
     host: adapter.id, agent_runtime: adapter.id === 'gemini' ? 'gemini-cli' : 'codex-cli', model: overrides.model ?? 'unknown',
     host_version: overrides.host_version ?? 'unknown', adapter_revision: adapter.revision,
     policy_profile: DEFAULT_POLICY_PROFILE.id, policy_revision: DEFAULT_POLICY_PROFILE.revision,
-    config_revision: overrides.config_revision ?? 'unknown'
+    config_revision: overrides.config_revision ?? 'unknown',
+    native_controls: overrides.native_controls ?? unknownNativeControls()
   };
 }
 

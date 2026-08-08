@@ -2,7 +2,7 @@
 
 ## `chamber.event.v1`
 
-Required fields: `event_id`, `occurred_at`, `session_id`, `lifecycle`, `host`, and `worker_profile`. `host` requires `runtime` and `adapter_revision`. `worker_profile` requires `host`, `agent_runtime`, `adapter_revision`, `policy_profile`, and `policy_revision`; model/version/config revisions may be `unknown` but must be represented. Canonical event payload may contain ephemeral policy inputs (`prompt`, `completion_output`, command and tool-response fields), but those are not the persisted trace schema.
+Required fields: `event_id`, `occurred_at`, `session_id`, `lifecycle`, `host`, and `worker_profile`. `host` requires `runtime` and `adapter_revision`. `worker_profile` requires `host`, `agent_runtime`, `adapter_revision`, `policy_profile`, and `policy_revision`; model/version/config revisions may be `unknown` but must be represented. `worker_profile.native_controls` uses `chamber.native-controls.v1`: an adapter-owned, versioned allowlist of namespaced bounded scalar controls, or explicit `unknown` when controls are not observably available for the session. It never accepts arbitrary configuration or provider payload. Canonical event payload may contain ephemeral policy inputs (`prompt`, `completion_output`, command and tool-response fields), but those are not the persisted trace schema.
 
 ```json
 {
@@ -10,7 +10,7 @@ Required fields: `event_id`, `occurred_at`, `session_id`, `lifecycle`, `host`, a
   "session_id": "example-session",
   "lifecycle": "tool.after",
   "host": {"runtime": "codex", "version": "0.147.0", "adapter_revision": "codex-hook-v2"},
-  "worker_profile": {"host": "codex", "agent_runtime": "codex-cli", "model": "unknown", "host_version": "0.147.0", "adapter_revision": "codex-hook-v2", "policy_profile": "audit-default", "policy_revision": "1", "config_revision": "unknown"},
+  "worker_profile": {"host": "codex", "agent_runtime": "codex-cli", "model": "unknown", "host_version": "0.147.0", "adapter_revision": "codex-hook-v2", "policy_profile": "audit-default", "policy_revision": "1", "config_revision": "unknown", "native_controls": {"schema_version": "chamber.native-controls.v1", "status": "unknown", "reason": "adapter-control-not-observed", "values": {}}},
   "payload": {"verification": {"classification": "recognized-check", "execution": "unknown", "source": "native-hook", "provenance": "codex.post-tool-use.output-only", "limitation": "exact-exit-status-unsupported"}},
   "vendor": {"hook_event_name": "PostToolUse"}
 }
@@ -133,6 +133,8 @@ A future serialized capability record should include host/runtime version, adapt
 ## Current `chamber.quality-evidence.v1`
 
 Contains `worker_profile`, `task_class`, execution `outcome`, deterministic verification count, total evidence count, freshness, probability (nullable), uncertainty, and schema/policy provenance. Probability must remain null rather than fabricated while the profile lacks enough evidence.
+
+The accompanying `evaluation` object is `chamber.factorized-evaluation.v1`, not an estimator result. It records that exact worker provenance is available separately, the statistical unit is `session-task-outcome`, selected model/task/policy/native-control factors may be pooled, and an interaction or exact-combination cohort must be evidence-justified. A native control is a namespaced provider value, never a cross-provider semantic level.
 
 The current implementation uses a single bounded outcome status (`accepted`, `rejected`, or `unknown`) and does not yet attribute individual interventions.
 

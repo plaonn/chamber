@@ -11,6 +11,7 @@ import { DEFAULT_POLICY_PROFILE, evaluatePolicy } from '../src/policy.js';
 import { TraceStore } from '../src/trace-store.js';
 import { inspectCodexHookRegistration } from '../src/operator.js';
 import { resolveStateDir } from '../src/state.js';
+import { nativeControlsFromAdapter } from '../src/effective-worker.js';
 
 const exec = promisify(execFile);
 const runWithInput = (file, args, input, options = {}) => new Promise((resolve, reject) => {
@@ -165,7 +166,34 @@ test('trace summary keeps aggregate counts descriptive and does not estimate suc
   const event = adapter.normalize({ hook_event_name: 'AfterTool', session_id: 'summary', tool_name: 'run_shell_command', tool_input: { command: 'pnpm test' }, tool_response: { llmContent: 'tests passed', returnDisplay: 'tests passed' } }, { worker_profile: profile(adapter) });
   await store.append({ kind: 'canonical_event', event, policy_decision: {} });
   const summary = traceSummary(await store.query({ limit: Infinity }));
-  assert.equal(summary.distinct_session_count, 1); assert.equal(summary.verification_counts.passed, 1); assert.equal(summary.success_probability, null);
+  assert.equal(summary.distinct_session_count, 1); assert.equal(summary.session_task_sample_count, 1); assert.equal(summary.verification_event_counts.passed, 1); assert.equal(summary.worker_session_counts.gemini, 1); assert.equal(summary.success_probability, null);
+  await rm(dir, { recursive: true });
+});
+
+test('native controls are namespaced exact provenance but factorized evaluation does not create an exact-tuple cohort', async () => {
+  const codex = profile(getAdapter('codex'));
+  codex.native_controls = nativeControlsFromAdapter({ 'codex.reasoning_effort': 'high' }, { revision: 'codex-controls-v1', source: 'fixture' });
+  const gemini = profile(getAdapter('gemini'));
+  gemini.native_controls = nativeControlsFromAdapter({ 'gemini.thinking_level': 'high' }, { revision: 'gemini-controls-v1', source: 'fixture' });
+  const codexEvidence = qualityEvidence([await normalize('codex', 'codex-user-prompt-submit.json')], codex);
+  const geminiEvidence = qualityEvidence([await normalize('gemini', 'gemini-before-agent.json')], gemini);
+  assert.deepEqual(codexEvidence.evaluation.selected_factors.native_controls, { 'codex.reasoning_effort': 'high' });
+  assert.deepEqual(geminiEvidence.evaluation.selected_factors.native_controls, { 'gemini.thinking_level': 'high' });
+  assert.equal(codexEvidence.evaluation.observed_provenance, 'exact');
+  assert.equal(codexEvidence.evaluation.estimator_basis, 'factorized-or-pooled');
+  assert.equal(codexEvidence.evaluation.interaction_promotion, 'evidence-required');
+  assert.throws(() => nativeControlsFromAdapter({ 'codex.config': { token: 'must-not-persist' } }, { revision: 'fixture', source: 'fixture' }), /invalid native control/);
+});
+
+test('unknown native controls persist explicitly and summary counts each session once despite many events', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-session-summary-')); const adapter = getAdapter('gemini'); const store = new TraceStore(dir);
+  for (const eventName of ['BeforeAgent', 'AfterTool']) {
+    const event = adapter.normalize({ hook_event_name: eventName, session_id: 'one', prompt: 'Implement feature', tool_name: 'run_shell_command', tool_input: { command: 'pnpm test' }, tool_response: { llmContent: 'tests passed', returnDisplay: 'tests passed' } }, { worker_profile: profile(adapter) });
+    await store.append({ kind: 'canonical_event', event, policy_decision: {} });
+  }
+  const records = await store.query({ limit: Infinity }); const evidence = qualityEvidence(records.map((record) => record.event), profile(adapter)); const summary = traceSummary(records);
+  assert.equal(evidence.evaluation.native_control_provenance.status, 'unknown');
+  assert.equal(summary.trace_records, 2); assert.equal(summary.session_task_sample_count, 1); assert.equal(summary.worker_session_counts.gemini, 1); assert.equal(summary.task_class_session_counts.debugging, 1);
   await rm(dir, { recursive: true });
 });
 

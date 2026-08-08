@@ -3,6 +3,7 @@ import { createEvent } from '../schema.js';
 import { capabilities } from '../capabilities.js';
 import { geminiAfterToolVerification } from '../verification.js';
 import { classifyEphemeralTask } from '../task-classification.js';
+import { unknownNativeControls } from '../effective-worker.js';
 
 function lifecycle(name) {
   return ({ SessionStart: 'session.start', SessionEnd: 'session.end', BeforeTool: 'tool.before', AfterTool: 'tool.after', BeforeAgent: 'prompt.submit', AfterAgent: 'finish.before', BeforeModel: 'model.before', AfterModel: 'model.after' })[name];
@@ -35,7 +36,7 @@ export const geminiAdapter = createAdapter({
       session_id: raw.session_id ?? context.session_id,
       lifecycle: mapped,
       host: { runtime: 'gemini-cli', version: raw.gemini_version ?? context.host_version ?? '0.37.2', adapter_revision: 'gemini-hooks-v2' },
-      worker_profile: context.worker_profile,
+      worker_profile: { ...context.worker_profile, native_controls: context.worker_profile.native_controls ?? unknownNativeControls('adapter-control-not-observed') },
       payload: {
         prompt: raw.prompt,
         completion_output: raw.prompt_response,

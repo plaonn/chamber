@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { EVENT_SCHEMA_VERSION, LIFECYCLES } from './constants.js';
 import { redact } from './redaction.js';
+import { normalizedNativeControls } from './effective-worker.js';
 
 export class SchemaError extends Error {}
 
@@ -29,6 +30,9 @@ export function validateEvent(event) {
   for (const key of ['runtime', 'adapter_revision']) if (!event.host[key]) throw new SchemaError(`host missing ${key}`);
   for (const key of ['host', 'agent_runtime', 'adapter_revision', 'policy_profile', 'policy_revision']) {
     if (!event.worker_profile[key]) throw new SchemaError(`worker_profile missing ${key}`);
+  }
+  if (event.worker_profile.native_controls) {
+    try { normalizedNativeControls(event.worker_profile.native_controls); } catch (error) { throw new SchemaError(error.message); }
   }
   return event;
 }
