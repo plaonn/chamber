@@ -40,9 +40,11 @@ chamber hosts
 chamber doctor [--state-dir DIR]
 chamber trace [--state-dir DIR] [--session-id ID]
 chamber evidence [--state-dir DIR] [--session-id ID]
+chamber outcome --session-id ID --status accepted|rejected|unknown [--state-dir DIR]
 chamber normalize --host codex|gemini --input event.json [--state-dir DIR]
-chamber install --host codex|gemini --config-dir ./test-config --dry-run
-chamber uninstall --host codex|gemini --config-dir ./test-config --dry-run
+chamber hook --host codex|gemini [--state-dir DIR]
+chamber install --host codex|gemini --config-dir ./test-config [--dry-run]
+chamber uninstall --host codex|gemini --config-dir ./test-config [--dry-run]
 ```
 
 `install` is a reversible, isolated registration manifest writer for testing Chamber registration. It never edits global Codex or Gemini configuration unless an operator explicitly supplies its real config directory. A real host-registration command remains gated on current official contract verification and is not part of this MVP's automated tests.
