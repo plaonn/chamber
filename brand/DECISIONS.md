@@ -2,27 +2,27 @@
 
 This file preserves **durable design rationale**, not every exploratory draft.
 
-## 2026-08-08 — Canonical symbol remains immutable
+## 2026-08-08 — Canonical standalone symbol remains immutable
 
 Decision:
 
-- Keep `chamber-symbol-v1` unchanged while developing the wordmark.
-- Derivatives must embed or reconstruct the canonical geometry exactly rather than visually reinterpret it.
+- Keep `chamber-symbol-v1` unchanged while evolving the wordmark.
+- Derivatives must reconstruct the canonical geometry exactly rather than visually reinterpret it.
 
 Why:
 
-The symbol geometry and Aurora relationship were already accepted. Reopening it during typography work would make the wordmark iteration an uncontrolled symbol redesign.
+The standalone symbol geometry and Aurora relationship were already accepted. Reopening it during typography work would turn a wordmark decision into an uncontrolled symbol redesign.
 
 ## 2026-08-08 — Wordmark inherits the frame, not the wedge angle
 
 Decision:
 
 - 45° is the alphabet/frame bevel system.
-- 34° belongs only to the symbol's entering wedge.
+- 34° belongs only to the entering wedge.
 
 Why:
 
-The capital `C` comes directly from the chamber frame. Using 45° on the alphabet makes the relationship legible and structurally stable while keeping the 34° wedge distinctive.
+The alphabet should inherit the symbol's construction philosophy while keeping the wedge distinctive.
 
 ## 2026-08-08 — Use icon-derived inset geometry instead of uniform apparent stroke thickness
 
@@ -34,7 +34,7 @@ Decision:
 
 Why:
 
-Forcing every visible direction to the same numeric thickness contradicts the finalized symbol. The wordmark should inherit the symbol's construction philosophy, not normalize away its bevel geometry.
+Forcing every visible direction to the same numeric thickness contradicts the finalized symbol.
 
 ## 2026-08-08 — Canonical lowercase module is W = 116.5
 
@@ -46,7 +46,7 @@ Decision:
 
 Why:
 
-The accepted `a` exposed a natural body width of `154 - 37.5 = 116.5`. The same value also reconciles the independently balanced earlier widths and returns `m` almost exactly to its visually selected width.
+The accepted `a` exposed a natural body width of `154 - 37.5 = 116.5`. The same value reconciles the independently balanced lowercase proportions.
 
 ## 2026-08-08 — `a` uses a symmetric counter and isosceles notch
 
@@ -58,7 +58,7 @@ Decision:
 
 Why:
 
-The symmetric counter gave the glyph substantially more stability. A right-triangle notch forced unrelated edge lengths and made the separator feel attached rather than designed. The isosceles notch preserves the 45° system and clearly separates the bowl from the tail.
+The symmetric counter and notch preserve the 45° system and keep the bowl/tail separation intentional.
 
 ## 2026-08-08 — `r` uses the equal terminal member
 
@@ -70,13 +70,79 @@ Decision:
 
 Why:
 
-Three members were compared with the same width, stem, diagonal offset, and construction:
+The equal member was the most balanced of the horizontal-only, equal, and vertical-only members of the same construction family.
 
-1. horizontal-only: `H=61.5, V=0`
-2. equal: `H=30.75, V=30.75`
-3. vertical-only: `H=0, V=61.5`
+## 2026-08-08 — Lowercase faces are unified before Aurora paint
 
-The equal member reads as the most balanced and intentional terminal while remaining part of the same geometric family.
+Decision:
+
+- Emit each lowercase glyph as a unified contour/compound path.
+- Do not construct final colored glyphs from overlapping independently painted rectangles.
+
+Why:
+
+Semi-transparent Aurora layers double-painted rectangle intersections and created darker join artifacts. Geometry composition and color composition must be separate: build the face first, paint it once per Aurora layer.
+
+## 2026-08-08 — Canonical wordmark v2 uses symbol-as-C
+
+Decision:
+
+- Replace the separate geometric capital-C concept with the Chamber symbol geometry acting as the visual `C`.
+- Scale the symbol derivative to 208 × 208 at y=32..240 so it aligns with the lowercase ascenders.
+- Use a 31-unit gap from the symbol bounding box to `h`.
+- Keep the standalone symbol independently usable and unchanged.
+
+Why:
+
+A standalone symbol placed next to a full `Chamber` wordmark produced two competing visual centers. Making the symbol itself the `C` gives the wordmark one clear identity hierarchy while preserving the symbol's recognizable construction.
+
+## 2026-08-08 — Transparent wordmark wedge requires a cut frame
+
+Decision:
+
+- Remove the wedge region from the wordmark's chamber frame before painting the wedge.
+- Paint the translucent wedge over that empty region rather than over a complete octagonal frame.
+
+Why:
+
+Once the wedge became translucent, leaving the full frame underneath made the octagon visible through the wedge and destroyed the intended opening/interface reading.
+
+## 2026-08-08 — Wordmark frame and letters share one field; wedge keeps an independent field
+
+Decision:
+
+- Apply one broad continuous Aurora field across the cut-C frame and `hamber`.
+- Apply a separately arranged wedge field using the same narrow Indigo/Violet/Orchid/Rose palette.
+- Derive the wedge hotspot arrangement from the standalone wedge field through the symbol-as-C transform.
+
+Why:
+
+A continuous field ties the visual `C` to the letters. An independent wedge field preserves interface separation without making the wedge look like an unrelated color object.
+
+## 2026-08-08 — Wedge uses normal 50% + overlay underlayer 15%
+
+Decision:
+
+- Render the wedge field once as an `overlay` underlayer at 15% opacity.
+- Render the same wedge field again normally at 50% opacity.
+- Keep this order: blend underlayer first, normal layer second.
+
+Why:
+
+Pure opacity gave the wedge too little adaptive value structure, while white-baked opaque color made the wedge dominate dark backgrounds. Applying overlay as the only blend result made the wedge collapse on extreme backgrounds. Keeping a normal translucent layer guarantees visibility; the low-contribution overlay layer adds backdrop-responsive value variation.
+
+`overlay` and `soft-light` subtle variants were visually very close. `overlay` was selected as the tie-breaker because it is the simpler blend primitive, not because a material performance difference is expected for a static logo.
+
+## 2026-08-08 — Do not use a redundant symbol + wordmark lockup
+
+Decision:
+
+- Canonical identity choices are the standalone symbol or the full symbol-as-C wordmark.
+- Remove the separate horizontal `[standalone symbol] + [Chamber wordmark]` lockup from the canonical brand package.
+
+Why:
+
+The wordmark already contains the symbol as its `C`. Prepending the standalone symbol duplicates the same identity cue and creates ambiguous visual focus.
 
 ## 2026-08-08 — Preserve decisions, not draft proliferation
 
@@ -86,4 +152,4 @@ Keep canonical assets, machine-readable geometry, generator, and durable rationa
 
 Why:
 
-The useful long-term information is the construction grammar and why the final branches were selected. Keeping every transient visual draft in the canonical brand tree would add noise and make source-of-truth boundaries less clear.
+The useful long-term information is the construction grammar and why the final branches were selected. Keeping every transient visual draft in the canonical brand tree would add noise and weaken source-of-truth boundaries.

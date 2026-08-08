@@ -1,10 +1,10 @@
 {
   "name": "Chamber",
-  "asset_version": "chamber-brand-v1",
+  "asset_version": "chamber-brand-v2",
   "symbol_version": "chamber-symbol-v1",
-  "wordmark_version": "chamber-wordmark-v1",
+  "wordmark_version": "chamber-wordmark-v2",
   "status": "canonical",
-  "scope": "symbol, custom wordmark, and horizontal lockup",
+  "scope": "standalone symbol and symbol-as-C custom wordmark",
   "geometry": {
     "canvas": {
       "width": 320,
@@ -67,11 +67,25 @@
   },
   "wordmark": {
     "text": "Chamber",
+    "representation": "symbol-as-C + hamber",
     "construction": "custom outlines; no font dependency",
-    "capital_c": {
-      "source": "canonical chamber frame with the 34-degree wedge removed",
-      "height": 240,
-      "visual_right": 238.3
+    "symbol_as_c": {
+      "source": "canonical chamber geometry transformed to wordmark ascender height; frame is cut by the canonical 34-degree wedge before wedge paint is applied",
+      "top": 32,
+      "bottom": 240,
+      "height": 208,
+      "width": 208,
+      "scale": 0.65,
+      "symbol_to_h_gap": 31,
+      "wedge_base": "wordmark_base",
+      "wedge_field_source": "canonical aurora.wedge_field transformed by symbol_as_c scale and y offset",
+      "blend_mode": "overlay",
+      "blend_underlayer_opacity": 0.15,
+      "normal_layer_opacity": 0.5,
+      "layer_order": [
+        "overlay-underlayer",
+        "normal-layer"
+      ]
     },
     "metrics": {
       "height": 240,
@@ -99,7 +113,7 @@
       "m": "2W - T; two W modules sharing one T stem"
     },
     "tracking": {
-      "capital_c_to_h": 41.0,
+      "symbol_as_c_to_h": 31.0,
       "lowercase_pairs": 31.0
     },
     "a": {
@@ -114,11 +128,7 @@
       "upper_split_y": 134.25,
       "rule": "H + V = diagonal_line_delta; selected H = V"
     },
-    "lockup": {
-      "symbol_height": 240,
-      "wordmark_height": 240,
-      "symbol_to_wordmark_gap": 55
-    }
+    "coexistence_rule": "use the standalone symbol or the full wordmark as the identity; do not prepend the standalone symbol to the symbol-as-C wordmark"
   },
   "palette": {
     "indigo": "#5968F2",
@@ -208,7 +218,7 @@
         "peak_opacity": 0.66
       }
     ],
-    "design_rule": "frame and wedge share the same narrow palette but use independently arranged aurora fields; differentiation comes from spatial color distribution, not large luminance separation"
+    "design_rule": "standalone symbol frame and wedge share the same narrow palette but use independently arranged aurora fields; standalone symbol geometry and field remain chamber-symbol-v1"
   },
   "wordmark_aurora": {
     "radial_stop_profile": [
@@ -228,50 +238,53 @@
     "hotspots": [
       {
         "color": "indigo",
-        "cx_ratio": 0.05,
-        "cy_ratio": 0.3,
-        "r_width_ratio": 0.42,
-        "peak_opacity": 0.96
+        "cx_ratio": 0.06,
+        "cy_ratio": 0.27,
+        "r_width_ratio": 0.43,
+        "peak_opacity": 0.94
       },
       {
         "color": "violet",
-        "cx_ratio": 0.36,
-        "cy_ratio": 0.2,
-        "r_width_ratio": 0.4,
+        "cx_ratio": 0.38,
+        "cy_ratio": 0.22,
+        "r_width_ratio": 0.43,
         "peak_opacity": 0.82
       },
       {
         "color": "orchid",
         "cx_ratio": 0.68,
-        "cy_ratio": 0.72,
-        "r_width_ratio": 0.39,
+        "cy_ratio": 0.73,
+        "r_width_ratio": 0.4,
         "peak_opacity": 0.76
       },
       {
         "color": "rose",
         "cx_ratio": 0.98,
-        "cy_ratio": 0.38,
+        "cy_ratio": 0.39,
         "r_width_ratio": 0.36,
         "peak_opacity": 0.88
       }
     ],
-    "design_rule": "use the same narrow palette as the symbol with a calmer, broader independent field across the wordmark"
+    "design_rule": "the cut-C frame and hamber share one broad continuous field; the wedge uses the same narrow palette but a separately arranged field"
   },
   "usage": {
-    "clear_space": "at least 1/8 of mark height around standalone marks and lockups",
+    "clear_space": "at least 1/8 of mark height around standalone marks and wordmarks",
     "preferred_minimum_size_px": 32,
-    "tiny_size_guidance": "at 24px and below prefer monochrome assets if aurora separation becomes muddy",
+    "tiny_size_guidance": "at 24px and below prefer monochrome assets if aurora or blend behavior becomes muddy",
     "backgrounds": [
       "light neutral",
-      "dark neutral"
+      "dark neutral",
+      "mid neutral"
     ],
+    "blend_fallback": "if mix-blend-mode is unsupported, both wedge layers fall back to ordinary alpha compositing; for strict reproduction use the monochrome wordmark asset",
     "avoid": [
       "changing the 34-degree wedge geometry",
       "treating 34 degrees as the general alphabet angle; frame and wordmark bevels use 45 degrees",
       "introducing prominent green",
-      "replacing the two independent symbol aurora fields with one continuous field",
-      "large frame/wedge luminance separation",
-      "moving warm color mass to the right solely to force boundary contrast",
+      "replacing the standalone symbol's two independent aurora fields with one continuous field",
+      "baking the wordmark wedge to a white-only appearance",
+      "using large fixed wedge luminance separation",
+      "prepending the standalone symbol to the symbol-as-C wordmark",
       "adding a central sparkle/diamond or AI-brain/circuit motif",
       "replacing the custom wordmark with a font",
       "redrawing the canonical symbol generatively"

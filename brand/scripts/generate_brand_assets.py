@@ -100,19 +100,15 @@ def canonical_inner(prefix="c"):
 
 def canonical_svg():
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-18 -18 356 356" '
-        'role="img" aria-labelledby="title desc">'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-18 -18 356 356" role="img" aria-labelledby="title desc">'
         '<title id="title">Chamber symbol</title>'
-        '<desc id="desc">A closed soft-octagonal chamber with a centered right-facing wedge, '
-        'using two coordinated aurora color fields.</desc>'
-        + canonical_inner("c") +
-        '</svg>\n'
+        '<desc id="desc">A closed soft-octagonal chamber with a centered right-facing wedge, using two coordinated aurora color fields.</desc>'
+        + canonical_inner("c") + '</svg>\n'
     )
 
 def mono_svg(fill):
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-18 -18 356 356" '
-        'role="img" aria-labelledby="title desc">'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-18 -18 356 356" role="img" aria-labelledby="title desc">'
         '<title id="title">Chamber monochrome symbol</title>'
         '<desc id="desc">Monochrome Chamber symbol for small sizes and constrained reproduction.</desc>'
         f'<defs><clipPath id="monoClip"><path d="{outer_path}"/></clipPath></defs>'
@@ -123,45 +119,17 @@ def mono_svg(fill):
 
 def app_icon_svg(background):
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" '
-        'role="img" aria-labelledby="title desc">'
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">'
         '<title id="title">Chamber app icon</title>'
         '<desc id="desc">Chamber symbol centered on a neutral rounded-square app icon field.</desc>'
         f'<rect width="512" height="512" rx="112" fill="{background}"/>'
         '<svg x="88" y="88" width="336" height="336" viewBox="-18 -18 356 356">'
-        + canonical_inner("app") +
-        '</svg></svg>\n'
-    )
-
-def preview_svg(background, text_color, prefix):
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 470">'
-        f'<rect width="640" height="470" rx="32" fill="{background}"/>'
-        '<svg x="155" y="55" width="330" height="330" viewBox="-18 -18 356 356">'
-        + canonical_inner(prefix) +
-        '</svg>'
-        f'<text x="320" y="430" text-anchor="middle" font-family="system-ui, sans-serif" '
-        f'font-size="28" font-weight="700" fill="{text_color}">Chamber</text>'
-        '</svg>\n'
+        + canonical_inner("app") + '</svg></svg>\n'
     )
 
 (OUT / "chamber-mark.svg").write_text(canonical_svg(), encoding="utf-8")
-(OUT / "chamber-mark-monochrome-dark.svg").write_text(
-    mono_svg(pal["monochrome_dark"]), encoding="utf-8"
-)
-(OUT / "chamber-mark-monochrome-light.svg").write_text(
-    mono_svg(pal["monochrome_light"]), encoding="utf-8"
-)
-(OUT / "chamber-app-icon-dark.svg").write_text(
-    app_icon_svg(pal["dark_background"]), encoding="utf-8"
-)
-(OUT / "chamber-app-icon-light.svg").write_text(
-    app_icon_svg("#F4F3FA"), encoding="utf-8"
-)
-(PREVIEWS / "chamber-on-light.svg").write_text(
-    preview_svg("#FFFFFF", "#222433", "light"), encoding="utf-8"
-)
-(PREVIEWS / "chamber-on-dark.svg").write_text(
-    preview_svg(pal["dark_background"], "#FFFFFF", "dark"), encoding="utf-8"
-)
-print("Generated Chamber brand assets.")
+(OUT / "chamber-mark-monochrome-dark.svg").write_text(mono_svg(pal["monochrome_dark"]), encoding="utf-8")
+(OUT / "chamber-mark-monochrome-light.svg").write_text(mono_svg(pal["monochrome_light"]), encoding="utf-8")
+(OUT / "chamber-app-icon-dark.svg").write_text(app_icon_svg(pal["dark_background"]), encoding="utf-8")
+(OUT / "chamber-app-icon-light.svg").write_text(app_icon_svg("#F4F3FA"), encoding="utf-8")
+print("Generated Chamber symbol assets.")

@@ -1,10 +1,12 @@
 # Chamber Brand Specification
 
-Status: **canonical brand v1**
+Status: **canonical brand v2**
 
-This directory is the source of truth for the Chamber symbol, custom wordmark, and horizontal lockup.
+This directory is the source of truth for the Chamber standalone symbol and custom wordmark.
 
-The symbol remains **chamber-symbol-v1**. The wordmark and lockup are now canonical as **chamber-wordmark-v1** / **chamber-brand-v1**.
+- standalone symbol: **chamber-symbol-v1** — unchanged
+- wordmark: **chamber-wordmark-v2** — `symbol-as-C + hamber`
+- brand package: **chamber-brand-v2**
 
 ## 1. Brand idea
 
@@ -13,13 +15,13 @@ Chamber represents a **controlled chamber** with an active interface entering fr
 - outer soft octagon: containment, controlled environment, stability
 - right-facing wedge: intervention, observation, conditioning, measurement
 - custom wordmark: the same construction grammar extended into a readable alphabet
-- design priority: **Chamber silhouette first, interface second**
+- design priority: **Chamber silhouette and wordmark first, wedge/interface second**
 
 The intended reading is not a play button, Pac-Man, lock, prison, robot, AI brain, or sparkle.
 
-## 2. Canonical symbol geometry
+## 2. Canonical standalone symbol
 
-The symbol is deterministic and regenerated from `brand-spec.json`.
+The standalone symbol remains `chamber-symbol-v1` and is not changed by the wordmark v2 decision.
 
 - base canvas: 320 × 320
 - outer soft-octagon chamfer: 54
@@ -29,7 +31,7 @@ The symbol is deterministic and regenerated from `brand-spec.json`.
 - wedge apex: (160, 160)
 - wedge half-angle: **34°**
 - wedge base extends to x=380 and is clipped to the outer octagon
-- the outer chamber remains geometrically closed; the wedge is an overlaid color region, not a physical cut-out
+- the standalone outer chamber remains geometrically closed; its wedge is an overlaid color region
 
 Do not redraw the canonical symbol by eye or with a generative image model.
 
@@ -37,24 +39,30 @@ Do not redraw the canonical symbol by eye or with a generative image model.
 
 Chamber deliberately has **two angle families**:
 
-- **45°** — frame chamfers and the custom wordmark construction
-- **34°** — the symbol's entering wedge only
+- **45°** — frame chamfers and the custom alphabet construction
+- **34°** — the entering wedge only
 
-Do not propagate the 34° wedge angle into the alphabet.
+Do not propagate the 34° wedge angle into the lowercase alphabet.
 
-## 4. Custom wordmark
+## 4. Canonical wordmark: symbol-as-C + hamber
 
-The canonical text is **`Chamber`**: capital `C`, lowercase `hamber`.
+The canonical text is still **`Chamber`**, but the visual capital `C` is the Chamber symbol geometry itself rather than a separate letter placed after a standalone icon.
 
-No font is used. The letters are deterministic vector constructions.
+### Symbol-as-C
 
-### Capital C
+At the 240-high wordmark scale:
 
-The `C` is the canonical chamber frame with the 34° wedge region removed, scaled to a height of 240.
+- top: 32
+- baseline/bottom: 240
+- symbol height/width: 208
+- canonical-symbol scale: 0.65
+- symbol → `h` gap: 31
+
+The frame is the canonical chamber geometry **cut by the 34° wedge region first**. The wedge is then painted over the empty opening. This is necessary because the wedge is translucent; leaving the full frame underneath would show the octagon through the wedge.
+
+The symbol-as-C derivative is wordmark-specific. It does not alter `chamber-symbol-v1`.
 
 ### Lowercase module
-
-At a 240-high wordmark scale:
 
 | Token | Value | Meaning |
 |---|---:|---|
@@ -71,7 +79,7 @@ Widths:
 - `a` = `W + T` = 154
 - `m` = `2W - T` = 195.5
 
-This modular interpretation was selected because it simultaneously explains the accepted `a` and the independently balanced proportions of `h/b/e/m/r`.
+The lowercase glyphs are emitted as unified filled contours, not overlapping painted rectangles. Aurora layers therefore paint each glyph face once and do not create alpha-darkened joins.
 
 ### `a`
 
@@ -89,16 +97,15 @@ The selected terminal is the **equal** construction:
 - vertical component: 30.75
 - `H + V = 61.5`
 - upper split y: 134.25
-- diagonal thickness remains inherited from the canonical icon geometry
-
-The equal terminal was selected after comparing horizontal-only, equal, and vertical-only members of the same construction family.
 
 ### Tracking
 
-- visual `C` → `h`: 41
+- symbol-as-C → `h`: 31
 - lowercase pairs: 31
 
-## 5. Palette
+## 5. Palette and Aurora fields
+
+Palette:
 
 | Token | Hex | Role |
 |---|---|---|
@@ -106,29 +113,42 @@ The equal terminal was selected after comparing horizontal-only, equal, and vert
 | Violet | `#8058E8` | bridge |
 | Orchid | `#B752D7` | warm-mid bridge |
 | Rose | `#E45E9A` | warm endpoint |
-| Frame base | `#58558F` | frame substrate |
-| Wedge base | `#68578F` | wedge substrate |
+| Frame base | `#58558F` | standalone-frame substrate |
+| Wedge base | `#68578F` | standalone-wedge substrate |
 | Wordmark base | `#7162B1` | wordmark substrate |
 
 The palette is deliberately narrow. Prominent green is excluded.
 
-## 6. Aurora fields
+The standalone symbol keeps its original independent frame and wedge fields.
 
-The symbol frame and wedge share the same palette but use **two independently arranged fields**. This preserves structural separation without making them look like unrelated pieces.
+The wordmark uses two field roles:
 
-The wordmark uses a **third, independent, broader and calmer field** using the same narrow palette. It is not a continuation of the symbol field.
+1. **cut-C frame + `hamber`** — one broad continuous wordmark-wide Aurora field
+2. **wedge** — a separate field using the same palette, spatially derived from the standalone wedge field
 
-Exact hotspot coordinates and ratios live in `brand-spec.json`.
+This gives the wedge a distinct value relationship without turning it into a separate visual brand object.
 
-## 7. Horizontal lockup
+## 6. Wedge transparency and blend behavior
 
-The canonical horizontal lockup uses:
+Canonical full-color wordmark composition:
 
-- symbol height: 240
-- wordmark height: 240
-- symbol → wordmark gap: 55
+1. render the wedge field as an **overlay underlayer at 15% opacity**;
+2. render the same wedge field again as a **normal layer at 50% opacity**.
 
-The symbol is not reinterpreted for the lockup.
+The normal layer guarantees that the wedge remains visible on very light and very dark backgrounds. The low-contribution overlay layer lets the wedge value respond to the backdrop without allowing the blend effect to dominate the wordmark.
+
+`mix-blend-mode: overlay` was selected over `soft-light` because the accepted subtle variants were visually near-equivalent and overlay is the simpler blend primitive. The choice is a tie-breaker, not a claim of material runtime performance improvement for a single static logo.
+
+If a renderer ignores `mix-blend-mode`, both layers fall back to ordinary alpha compositing and remain usable. For strict constrained reproduction, use the monochrome wordmark assets.
+
+## 7. Identity composition
+
+Use **either**:
+
+- the standalone Chamber symbol, or
+- the full symbol-as-C `Chamber` wordmark.
+
+Do **not** prepend the standalone symbol to the wordmark. A separate `[symbol] + Chamber` horizontal lockup is intentionally not part of brand v2 because it duplicates the visual `C` identity and creates competing focal points.
 
 ## 8. Reproduction
 
@@ -138,39 +158,44 @@ Run from the repository root:
 python3 brand/scripts/generate_wordmark_assets.py
 ```
 
-`brand-spec.json` is the machine-readable design contract. `generate_wordmark_assets.py` imports and runs the existing symbol generator first, then emits the canonical wordmark, lockups, and updated previews. Both generators use only the Python standard library.
+`brand-spec.json` is the machine-readable design contract. `generate_wordmark_assets.py` imports the standalone symbol generator first, then emits the wordmark and presentation previews. The generators use only the Python standard library.
 
 ## 9. Asset roles
 
 Canonical:
 
-- `assets/chamber-mark.svg` — full-color symbol
-- `assets/chamber-wordmark.svg` — full-color custom wordmark
-- `assets/chamber-lockup-horizontal.svg` — full-color horizontal lockup
+- `assets/chamber-mark.svg` — full-color standalone symbol
+- `assets/chamber-wordmark.svg` — full-color symbol-as-C wordmark
 - `assets/*-monochrome-dark.svg` — dark-ink constrained variants
 - `assets/*-monochrome-light.svg` — light-ink constrained variants
 
 Derived:
 
-- `assets/chamber-app-icon-*.svg` — app-icon presentations; symbol geometry unchanged
-- `assets/previews/*` — non-canonical presentation previews using the real custom wordmark
+- `assets/chamber-app-icon-*.svg` — standalone-symbol app-icon presentations
+- `assets/previews/*` — non-canonical presentation previews using the canonical wordmark
+
+Removed from brand v2:
+
+- `chamber-lockup-horizontal*.svg` — redundant separate-symbol + wordmark lockups
 
 ## 10. Usage
 
 Preferred:
 
-- neutral light or dark background
+- neutral light, mid, or dark background
 - at least 1/8 asset height of clear space
 - Aurora assets at normal UI/logo sizes
-- below roughly 24 px, test the monochrome asset if the Aurora field becomes muddy
+- below roughly 24 px, test the monochrome asset if Aurora/blend behavior becomes muddy
 
 Avoid:
 
 - changing the 34° wedge geometry
 - treating 34° as the alphabet angle
 - introducing strong green
-- merging symbol frame/wedge into one Aurora field
-- using large frame/wedge brightness separation
+- merging the standalone frame/wedge fields
+- baking the wordmark wedge to a white-only appearance
+- using large fixed frame/wedge brightness separation
+- prepending the standalone symbol to the symbol-as-C wordmark
 - replacing the custom wordmark with a font
 - redrawing the canonical symbol generatively
 - generic AI-brain, circuit, robot-head, prison-bar, padlock, or sparkle motifs
