@@ -38,6 +38,15 @@ test('Codex Stop preserves native final response as canonical completion payload
   assert.equal(event.payload.completion_output, 'Tests passed and the implementation is verified.');
 });
 
+test('Codex native controls stay unknown without a contracted session-local source', async () => {
+  const adapter = getAdapter('codex');
+  const raw = { ...(await fixture('codex-stop.json')), reasoning_effort: 'high' };
+  const event = adapter.normalize(raw, { worker_profile: profile(adapter) });
+  assert.deepEqual(event.worker_profile.native_controls, {
+    schema_version: 'chamber.native-controls.v1', status: 'unknown', reason: 'adapter-control-not-observed', values: {}
+  });
+});
+
 test('Codex output is event-aware: audit-only uses no-op, enforcement blocks', async () => {
   const adapter = getAdapter('codex');
   const pre = adapter.normalize({ ...(await fixture('codex-tool-after.json')), hook_event_name: 'PreToolUse' }, { worker_profile: profile(adapter) });
