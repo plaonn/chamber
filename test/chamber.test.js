@@ -193,7 +193,7 @@ test('explicit outcome recording preserves session worker provenance without tra
   assert.equal(evidence.outcome, 'accepted'); assert.equal(evidence.task_class, 'implementation'); await rm(dir, { recursive: true });
 });
 
-test('outcome latest-unlabeled is deterministic, idempotent, and rejects conflicting acceptance', async () => {
+test('outcome latest-unlabeled selects the newest session, is idempotent, and rejects conflicting acceptance', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'chamber-outcome-selection-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
   const seed = async (sessionId) => runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify({ hook_event_name: 'BeforeAgent', session_id: sessionId, prompt: 'Implement feature' }), { env: { ...process.env, CHAMBER_STATE_DIR: dir } });
   await seed('one');
@@ -204,7 +204,23 @@ test('outcome latest-unlabeled is deterministic, idempotent, and rejects conflic
   await assert.rejects(exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--session-id', 'one', '--status', 'rejected']), /conflicting_acceptance_evidence/);
   await seed('two'); await seed('three');
   result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--latest-unlabeled', '--status', 'accepted'])).stdout);
-  assert.deepEqual(result, { status: 'selection_required', session_ids: ['two', 'three'] });
+  assert.equal(result.recorded, true); assert.equal(result.session_id, 'three');
+  await rm(dir, { recursive: true });
+});
+
+test('outcome latest-unlabeled selects only a uniquely newest comparable session and fails closed otherwise', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-outcome-recency-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  const adapter = getAdapter('gemini'); const store = new TraceStore(dir); const worker = profile(adapter);
+  const append = async (sessionId, occurredAt) => store.append({ kind: 'canonical_event', event: createEvent({ event_id: `${sessionId}-${occurredAt}`, occurred_at: occurredAt, session_id: sessionId, lifecycle: 'prompt.submit', host: { runtime: 'fixture', adapter_revision: 'fixture' }, worker_profile: worker }) });
+  await append('older', '2026-08-09T00:00:00.000Z'); await append('newer', '2026-08-09T00:01:00.000Z');
+  let result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--latest-unlabeled', '--status', 'accepted'])).stdout);
+  assert.equal(result.session_id, 'newer');
+  await append('tied-a', '2026-08-09T00:02:00.000Z'); await append('tied-b', '2026-08-09T00:02:00.000Z');
+  result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--latest-unlabeled', '--status', 'accepted'])).stdout);
+  assert.deepEqual(result, { status: 'selection_required', session_ids: ['tied-a', 'tied-b'] });
+  await append('invalid-time', 'not-a-timestamp');
+  result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--latest-unlabeled', '--status', 'accepted'])).stdout);
+  assert.equal(result.status, 'selection_required'); assert.ok(result.session_ids.includes('invalid-time'));
   await rm(dir, { recursive: true });
 });
 
@@ -235,6 +251,17 @@ test('trace summary keeps aggregate counts descriptive and does not estimate suc
   assert.equal(summary.distinct_session_count, 1); assert.equal(summary.session_task_sample_count, 1); assert.equal(summary.verification_event_counts.passed, 1); assert.equal(summary.worker_session_counts.gemini, 1); assert.equal(summary.success_probability, null);
   assert.equal(summary.acceptance_unknown_session_count, 1); assert.deepEqual(summary.verification_session_counts, { passed: 1 });
   await rm(dir, { recursive: true });
+});
+
+test('dogfood verification summaries use the trajectory freshness state', () => {
+  const worker = profile(getAdapter('gemini'));
+  const event = (id, occurredAt, payload = {}) => createEvent({ event_id: id, occurred_at: occurredAt, session_id: 'summary-freshness', lifecycle: 'tool.after', host: { runtime: 'fixture', adapter_revision: 'fixture' }, worker_profile: worker, payload });
+  const passed = event('verify-1', '2026-08-09T00:00:00.000Z', { verification: { classification: 'recognized-check', execution: 'passed' } });
+  const mutation = event('mutation-1', '2026-08-09T00:01:00.000Z', { mutation: { classification: 'meaningful', provenance: 'fixture' } });
+  const failed = event('failed-1', '2026-08-09T00:02:00.000Z', { verification: { classification: 'recognized-check', execution: 'failed' } });
+  assert.deepEqual(traceSummary([{ event: passed }, { event: mutation }]).verification_session_counts, { stale: 1 });
+  assert.deepEqual(traceSummary([{ event: mutation }, { event: passed }]).verification_session_counts, { passed: 1 });
+  assert.deepEqual(traceSummary([{ event: failed }]).verification_session_counts, { failed: 1 });
 });
 
 test('dogfood summary counts minimized findings, interventions, budgets, and capability gaps per session', async () => {

@@ -84,7 +84,7 @@ Fixtures are sanitized and do not invoke external agent runtimes. See `test/fixt
 
 `outcome` records only an explicit bounded status (`accepted`, `rejected`, or `unknown`) against an existing traced session. It reuses that session's worker provenance and stores neither reviewer feedback nor transcripts.
 
-`outcome --latest-unlabeled` labels only when exactly one session has no explicit acceptance evidence; otherwise it returns a bounded `selection_required` queue without writing. Repeating the same label is idempotent, while a conflicting label is rejected. `dogfood` is a compact report of session-level acceptance, execution and verification coverage plus minimized finding, intervention, budget, capability-gap, and unlabeled-session counts. It never treats verification or completion as acceptance.
+`outcome --latest-unlabeled` labels the uniquely most recent unlabeled session, using persisted event timestamps only. A tied, missing, or unparseable timestamp returns a bounded `selection_required` queue without writing. Repeating the same label is idempotent, while a conflicting label is rejected. `dogfood` is a compact report of session-level acceptance, execution and verification coverage plus minimized finding, intervention, budget, capability-gap, and unlabeled-session counts. Its verification state is freshness-aware: `passed`, `stale`, `failed`, or `unknown`. It never treats verification or completion as acceptance.
 
 ## Contributing
 

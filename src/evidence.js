@@ -1,7 +1,8 @@
 import { QUALITY_EVIDENCE_SCHEMA_VERSION } from './constants.js';
-import { isSuccessfulVerification } from './verification.js';
 import { persistedTaskClass } from './task-classification.js';
 import { factorizedEvaluation } from './effective-worker.js';
+import { verificationState } from './trajectory.js';
+import { isSuccessfulVerification } from './verification.js';
 
 export function qualityEvidence(events, workerProfile) {
   const outcomes = events.filter((event) => event.lifecycle === 'outcome');
@@ -42,7 +43,7 @@ export function traceSummary(records) {
     worker_profile: sessionEvents.at(-1)?.worker_profile,
     task_class: persistedTaskClass(sessionEvents).value,
     acceptance: sessionEvents.filter((event) => event.lifecycle === 'outcome').at(-1)?.payload?.status ?? 'unknown',
-    verification: sessionEvents.some(isSuccessfulVerification) ? 'passed' : sessionEvents.some((event) => event.payload?.verification?.execution === 'failed') ? 'failed' : 'unknown',
+    verification: verificationState(sessionEvents),
     execution: sessionEvents.some((event) => event.lifecycle === 'finish.before' || event.lifecycle === 'finish.after') ? 'completed' : 'unknown',
     finding_codes: records.filter((record) => record.event?.session_id === sessionId).map((record) => record.policy_decision?.finding?.code).filter(Boolean),
     intervention_results: records.filter((record) => record.event?.session_id === sessionId).map((record) => record.policy_decision?.intervention?.result).filter(Boolean),

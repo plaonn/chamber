@@ -12,6 +12,7 @@ import { resolveStateDir } from '../src/state.js';
 import { unknownNativeControls } from '../src/effective-worker.js';
 
 const args = process.argv.slice(2);
+const MAX_SELECTION_CANDIDATES = 10;
 const option = (name, fallback) => { const index = args.indexOf(name); return index < 0 ? fallback : args[index + 1]; };
 const has = (name) => args.includes(name);
 const output = (value) => process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -84,9 +85,18 @@ async function outcome() {
   if (has('--latest-unlabeled')) {
     const bySession = new Map();
     for (const record of all) bySession.set(record.event?.session_id, [...(bySession.get(record.event?.session_id) ?? []), record]);
-    const candidates = [...bySession.entries()].filter(([id, records]) => id && !records.some((record) => record.event?.lifecycle === 'outcome')).map(([id]) => id);
-    if (candidates.length !== 1) return output({ status: candidates.length ? 'selection_required' : 'no_unlabeled_sessions', session_ids: candidates });
-    sessionId = candidates[0];
+    const candidates = [...bySession.entries()]
+      .filter(([id, records]) => id && !records.some((record) => record.event?.lifecycle === 'outcome'))
+      .map(([id, records]) => ({ id, timestamps: records.map((record) => Date.parse(record.event?.occurred_at)) }));
+    if (!candidates.length) return output({ status: 'no_unlabeled_sessions', session_ids: [] });
+    if (candidates.some((candidate) => candidate.timestamps.some((timestamp) => !Number.isFinite(timestamp)))) {
+      return output({ status: 'selection_required', session_ids: candidates.map((candidate) => candidate.id).sort().slice(0, MAX_SELECTION_CANDIDATES) });
+    }
+    const latest = candidates.map((candidate) => ({ ...candidate, timestamp: Math.max(...candidate.timestamps) }));
+    const maximum = Math.max(...latest.map((candidate) => candidate.timestamp));
+    const newest = latest.filter((candidate) => candidate.timestamp === maximum);
+    if (newest.length !== 1) return output({ status: 'selection_required', session_ids: newest.map((candidate) => candidate.id).sort().slice(0, MAX_SELECTION_CANDIDATES) });
+    sessionId = newest[0].id;
   }
   if (!sessionId) throw new Error('outcome requires --session-id or --latest-unlabeled');
   const history = await store.query({ sessionId }); const exemplar = history.at(-1)?.event;

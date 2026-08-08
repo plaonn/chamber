@@ -6,6 +6,10 @@ function mutation(event) {
   return event.payload?.mutation?.classification === 'meaningful';
 }
 
+function recognizedVerification(event) {
+  return event.lifecycle === 'tool.after' && event.payload?.verification?.classification === 'recognized-check';
+}
+
 export function reduceTrajectory(events = []) {
   const state = {
     revision: TRAJECTORY_REVISION,
@@ -20,7 +24,7 @@ export function reduceTrajectory(events = []) {
       state.meaningful_mutation_since_verification = true;
       state.last_meaningful_mutation_event_id = event.event_id;
     }
-    if (event.lifecycle === 'tool.after' && event.payload?.verification) state.last_verification_execution = event.payload.verification.execution;
+    if (recognizedVerification(event)) state.last_verification_execution = event.payload.verification.execution;
     if (isSuccessfulVerification(event)) {
       state.last_successful_verification_event_id = event.event_id;
       state.meaningful_mutation_since_verification = false;
@@ -28,6 +32,14 @@ export function reduceTrajectory(events = []) {
     if (event.lifecycle === 'finish.before') state.completion_attempts += 1;
   }
   return state;
+}
+
+export function verificationState(events = []) {
+  const trajectory = reduceTrajectory(events);
+  if (trajectory.meaningful_mutation_since_verification && trajectory.last_successful_verification_event_id) return 'stale';
+  if (trajectory.last_verification_execution === 'passed') return 'passed';
+  if (trajectory.last_verification_execution === 'failed') return 'failed';
+  return 'unknown';
 }
 
 export function verificationFreshnessFinding(event, trajectory) {
