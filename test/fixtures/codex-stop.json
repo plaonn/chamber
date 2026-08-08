@@ -1,0 +1,1 @@
+{"hook_event_name":"Stop","session_id":"codex-fixture-session","turn_id":"turn-2","cwd":"/tmp/project","transcript_path":null,"model":"gpt-5-codex","permission_mode":"default","stop_hook_active":false,"last_assistant_message":"Tests passed and the implementation is verified."}

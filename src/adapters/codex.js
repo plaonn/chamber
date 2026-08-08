@@ -1,24 +1,55 @@
 import { createAdapter } from './base.js';
 import { createEvent } from '../schema.js';
+import { capabilities } from '../capabilities.js';
+import { verificationFromTool } from '../verification.js';
 
 function lifecycle(name) {
   return ({ SessionStart: 'session.start', UserPromptSubmit: 'prompt.submit', PreToolUse: 'tool.before', PostToolUse: 'tool.after', Stop: 'finish.before', SessionEnd: 'session.end' })[name];
 }
 
 export const codexAdapter = createAdapter({
-  id: 'codex', revision: 'codex-hook-v1',
-  capabilityValues: { can_block: true, can_mutate_tool_args: false, can_inject_context: false, can_observe_model_io: false, can_retry_finish: false, can_modify_output: false },
+  id: 'codex', revision: 'codex-hook-v2',
+  capabilityValues: {},
+  eventCapabilities: {
+    SessionStart: ['can_inject_context'], UserPromptSubmit: ['can_block', 'can_inject_context'],
+    PreToolUse: ['can_block', 'can_mutate_tool_args', 'can_inject_context'],
+    PostToolUse: ['can_inject_context', 'can_modify_output'], Stop: ['can_block', 'can_retry_finish']
+  },
+  capabilitiesFor(event) {
+    return capabilities({
+      can_block: ['UserPromptSubmit', 'PreToolUse', 'Stop'].includes(event.vendor?.hook_event_name),
+      can_mutate_tool_args: event.vendor?.hook_event_name === 'PreToolUse',
+      can_inject_context: ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse'].includes(event.vendor?.hook_event_name),
+      can_observe_model_io: false,
+      can_retry_finish: event.vendor?.hook_event_name === 'Stop',
+      can_modify_output: event.vendor?.hook_event_name === 'PostToolUse'
+    });
+  },
   normalize(raw, context) {
     const mapped = lifecycle(raw.hook_event_name);
     if (!mapped) throw new Error(`unsupported Codex hook event: ${raw.hook_event_name}`);
     return createEvent({
       session_id: raw.session_id ?? context.session_id,
       lifecycle: mapped,
-      host: { runtime: 'codex', version: raw.codex_version ?? context.host_version ?? 'unknown', adapter_revision: 'codex-hook-v1' },
+      host: { runtime: 'codex', version: raw.codex_version ?? context.host_version ?? '0.147.0', adapter_revision: 'codex-hook-v2' },
       worker_profile: context.worker_profile,
-      payload: { tool_name: raw.tool_name, command: raw.tool_input?.command, exit_code: raw.tool_response?.exit_code, output: raw.tool_response?.output },
-      vendor: { hook_event_name: raw.hook_event_name, hook_event_id: raw.hook_event_id, tool_use_id: raw.tool_use_id }
+      payload: {
+        prompt: raw.prompt,
+        completion_output: raw.last_assistant_message,
+        stop_hook_active: raw.stop_hook_active,
+        tool_name: raw.tool_name,
+        command: raw.tool_input?.command,
+        tool_response: raw.tool_response,
+        verification: verificationFromTool({ command: raw.tool_input?.command, toolName: raw.tool_name, toolResponse: raw.tool_response })
+      },
+      vendor: { hook_event_name: raw.hook_event_name, tool_use_id: raw.tool_use_id }
     });
   },
-  response(decision) { return decision.action === 'deny' ? { decision: 'deny', reason: decision.decisions[0].reason } : { decision: 'allow' }; }
+  response(decision, event) {
+    const reason = decision.decisions?.find((item) => item.verdict === 'deny')?.reason;
+    const name = event.vendor?.hook_event_name;
+    if (decision.action !== 'deny') return name === 'PreToolUse' ? { decision: 'approve' } : {};
+    if (['PreToolUse', 'PostToolUse', 'Stop', 'UserPromptSubmit'].includes(name)) return { decision: 'block', reason };
+    return {};
+  }
 });

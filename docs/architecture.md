@@ -12,7 +12,7 @@ Lifecycle vocabulary: `session.start`, `session.end`, `prompt.submit`, `model.be
 
 ## Capability model
 
-Each adapter publishes booleans for `can_block`, `can_mutate_tool_args`, `can_inject_context`, `can_observe_model_io`, `can_retry_finish`, and `can_modify_output`. A policy decision names required capabilities. Enforcement on a host without them returns an explicit `audit` decision with its missing capability names; it is never silently ignored.
+Capabilities are event-conditioned, not host-wide promises. Each adapter computes `can_block`, `can_mutate_tool_args`, `can_inject_context`, `can_observe_model_io`, `can_retry_finish`, and `can_modify_output` from the normalized host event. A policy decision names required capabilities. Enforcement on an event without them returns an explicit `audit` decision with its missing capability names; it is never silently ignored.
 
 ## Policy primitives
 
@@ -20,11 +20,17 @@ Validators return allow/deny/retry-oriented decisions. Mutators are a separate p
 
 The default `audit-default@1` profile does not block a host. A future enforce profile can use policy-specific `failure_semantics` and adapter capability checks.
 
+## Native contract mapping
+
+Codex CLI `0.147.0` maps `SessionStart` to `session.start`, `UserPromptSubmit` to `prompt.submit`, `PreToolUse`/`PostToolUse` to tool lifecycle events, and `Stop` to `finish.before`. `Stop.last_assistant_message` is the canonical `completion_output`. Codex response generation is event-aware: `PreToolUse` emits `{ "decision": "approve" }` or `{ "decision": "block", "reason": ... }`; `Stop` uses an empty no-op response or block. Chamber does not pretend that every Codex event can block or mutate input.
+
+Gemini CLI `0.37.2` maps `BeforeAgent` to `prompt.submit`, and `AfterAgent` to `finish.before` because it supplies `prompt_response` at the response validation/retry boundary. `BeforeTool` and `AfterTool` remain canonical tool lifecycle events. Gemini uses structured `{ "decision": "allow" | "deny", "reason"? }` responses; an `AfterAgent` deny requests a retry.
+
 ## Trace and evidence
 
-The first store is append-only JSONL for dependency-free local operation and deterministic export. Each line includes `chamber.trace.v1`, record time, redacted raw vendor data, canonical event, and policy decision. Key/value redaction runs before storage. This is intentionally a local record, not a centralized analytics service.
+The first store is append-only JSONL for dependency-free local operation and deterministic export. Raw hook payload is ephemeral: adapters normalize it and policy evaluates it in memory. Persistence writes `chamber.trace.v2` with `minimized-v2` provenance and an allowlisted projection only: identifiers, lifecycle, host/worker provenance, hook name, stop-loop flag, and verification classification/outcome. Prompts, final responses, command strings, tool output, arbitrary tool input, and raw vendor payload are omitted by default. Explicit raw-vendor debug recording is opt-in only and still redacted; it is not used by normal CLI flows.
 
-Quality evidence identifies an effective worker profile rather than a raw model name: host, agent runtime, model, host version, adapter revision, policy profile/revision, and config revision. The MVP sets `success_probability` to `null` with `uncertainty: insufficient_evidence` until sufficient accepted outcomes exist.
+Quality evidence identifies an effective worker profile rather than a raw model name: host, agent runtime, model, host version, adapter revision, policy profile/revision, and config revision. Deterministic verification evidence means only a recognized test/check command with explicit successful execution status. Unclassified tools and recognized commands without a reliable exit status are not counted. The MVP sets `success_probability` to `null` with `uncertainty: insufficient_evidence` until sufficient accepted outcomes exist.
 
 ## Adapter contract status
 

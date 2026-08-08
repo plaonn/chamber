@@ -1,4 +1,5 @@
 import { QUALITY_EVIDENCE_SCHEMA_VERSION } from './constants.js';
+import { isSuccessfulVerification } from './verification.js';
 
 export function classifyTask(events) {
   const text = events.map((event) => JSON.stringify(event.payload)).join(' ').toLowerCase();
@@ -10,7 +11,7 @@ export function classifyTask(events) {
 
 export function qualityEvidence(events, workerProfile) {
   const outcomes = events.filter((event) => event.lifecycle === 'outcome');
-  const verified = events.filter((event) => event.lifecycle === 'tool.after' && Number(event.payload.exit_code) === 0).length;
+  const verified = events.filter(isSuccessfulVerification).length;
   return {
     schema_version: QUALITY_EVIDENCE_SCHEMA_VERSION,
     generated_at: new Date().toISOString(),

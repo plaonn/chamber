@@ -1,4 +1,5 @@
 import { unsupported } from './capabilities.js';
+import { isSuccessfulVerification } from './verification.js';
 
 export const DEFAULT_POLICY_PROFILE = {
   id: 'audit-default',
@@ -11,11 +12,9 @@ export const DEFAULT_POLICY_PROFILE = {
 
 export function completionEvidenceValidator(event, history) {
   if (event.lifecycle !== 'finish.before') return { verdict: 'allow', reason: 'not-applicable' };
-  const text = String(event.payload.output ?? event.payload.message ?? '');
+  const text = String(event.payload.completion_output ?? '');
   if (!/\b(tests?\s+(passed|pass)|verified|verification succeeded)\b/i.test(text)) return { verdict: 'allow', reason: 'no-verification-claim' };
-  const verified = history.some((prior) => prior.lifecycle === 'tool.after'
-    && /(?:test|pytest|vitest|jest|cargo test|go test)/i.test(String(prior.payload.command ?? ''))
-    && Number(prior.payload.exit_code) === 0);
+  const verified = history.some(isSuccessfulVerification);
   return verified
     ? { verdict: 'allow', reason: 'verification-evidence-present' }
     : { verdict: 'deny', reason: 'unsupported-completion-claim', required_capabilities: ['can_block'] };

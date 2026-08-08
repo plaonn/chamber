@@ -17,9 +17,12 @@ node bin/chamber.js hosts
 node bin/chamber.js doctor --state-dir .chamber-demo
 node bin/chamber.js trace --state-dir .chamber-demo
 node bin/chamber.js evidence --state-dir .chamber-demo
+pnpm smoke:gemini
 ```
 
 The demo records a completion claim without test evidence. Because the default policy is audit-only, it records the unsupported claim and does not alter host behavior.
+
+`smoke:gemini` builds a disposable project-local `.gemini/settings.json`, installs `BeforeAgent` and `AfterAgent` hooks only in that temporary project, and removes it afterward. It requires an already-valid Gemini CLI authentication method and makes one model call; it never edits global settings.
 
 ## Operator commands
 
@@ -51,8 +54,7 @@ Read [the architecture contract](docs/architecture.md), the [event and evidence 
 
 ```bash
 pnpm test
-pnpm lint
-pnpm typecheck
+pnpm check
 ```
 
 Fixtures are sanitized and do not invoke external agent runtimes. See `test/fixtures/`.

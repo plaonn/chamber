@@ -8,8 +8,8 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "test": "node --test",
-    "lint": "node --check bin/chamber.js && node --check src/*.js && node --check src/adapters/*.js",
-    "typecheck": "node --check bin/chamber.js && node --check src/*.js && node --check src/adapters/*.js",
-    "demo": "node bin/chamber.js demo --state-dir .chamber-demo"
+    "check": "node --check bin/chamber.js && node --check scripts/*.mjs && node --check src/*.js && node --check src/adapters/*.js",
+    "demo": "node bin/chamber.js demo --state-dir .chamber-demo",
+    "smoke:gemini": "node scripts/gemini-native-smoke.mjs"
   }
 }

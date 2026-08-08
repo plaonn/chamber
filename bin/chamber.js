@@ -18,6 +18,7 @@ Commands:
   trace [--state-dir DIR]       query redacted trace records
   evidence [--state-dir DIR]    export session quality evidence
   normalize --host H --input F  normalize a host fixture/event and record audit
+  hook --host H                  stdin/stdout native-hook entrypoint
   install --host H [--config-dir DIR] [--dry-run]
   uninstall --host H [--config-dir DIR] [--dry-run]
   demo [--state-dir DIR]        reproducible audit-only flow`);
@@ -41,9 +42,24 @@ async function normalize() {
   const event = adapter.normalize(raw, { session_id: option('--session-id', 'standalone'), worker_profile: workerProfile });
   const store = new TraceStore(resolve(option('--state-dir', '.chamber')));
   const history = (await store.query({ sessionId: event.session_id })).map((record) => record.event);
-  const decision = evaluatePolicy(event, history, DEFAULT_POLICY_PROFILE, adapter.capabilities);
-  await store.append({ kind: 'canonical_event', event, policy_decision: decision, raw_vendor_event: raw });
-  output({ event, decision, host_response: adapter.toHostResponse(decision) });
+  const decision = evaluatePolicy(event, history, DEFAULT_POLICY_PROFILE, adapter.capabilitiesFor(event));
+  await store.append({ kind: 'canonical_event', event, policy_decision: decision, raw_vendor_event: raw }, { recordRawVendor: has('--record-raw-vendor') });
+  output({ event, decision, host_response: adapter.toHostResponse(decision, event) });
+}
+
+async function hook() {
+  const adapter = getAdapter(option('--host'));
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  const raw = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  const workerProfile = profile(adapter, { model: raw.model, host_version: raw.codex_version ?? raw.gemini_version });
+  const event = adapter.normalize(raw, { session_id: raw.session_id, worker_profile: workerProfile });
+  const store = new TraceStore(resolve(process.env.CHAMBER_STATE_DIR ?? option('--state-dir', '.chamber')));
+  const history = (await store.query({ sessionId: event.session_id })).map((record) => record.event);
+  const policy = { ...DEFAULT_POLICY_PROFILE, mode: process.env.CHAMBER_MODE ?? DEFAULT_POLICY_PROFILE.mode };
+  const decision = evaluatePolicy(event, history, policy, adapter.capabilitiesFor(event));
+  await store.append({ kind: 'canonical_event', event, policy_decision: decision, raw_vendor_event: raw }, { recordRawVendor: process.env.CHAMBER_RECORD_RAW_VENDOR === '1' });
+  output(adapter.toHostResponse(decision, event));
 }
 
 async function install(remove = false) {
@@ -61,21 +77,22 @@ async function demo() {
   const stateDir = resolve(option('--state-dir', '.chamber-demo'));
   const adapter = getAdapter('gemini'); const workerProfile = profile(adapter, { host_version: 'fixture' });
   const store = new TraceStore(stateDir);
-  const raw = { hook_event_name: 'BeforeAgent', session_id: 'demo-session' };
+  const raw = { hook_event_name: 'AfterAgent', session_id: 'demo-session', prompt: 'run tests', prompt_response: 'tests passed', stop_hook_active: false };
   const event = adapter.normalize(raw, { worker_profile: workerProfile });
-  const decision = evaluatePolicy({ ...event, payload: { output: 'tests passed' } }, [], DEFAULT_POLICY_PROFILE, adapter.capabilities);
-  await store.append({ kind: 'canonical_event', event: { ...event, payload: { output: 'tests passed' } }, policy_decision: decision, raw_vendor_event: raw });
+  const decision = evaluatePolicy(event, [], DEFAULT_POLICY_PROFILE, adapter.capabilitiesFor(event));
+  await store.append({ kind: 'canonical_event', event, policy_decision: decision, raw_vendor_event: raw });
   output({ mode: 'audit', behavior_changed: false, decision, trace_dir: stateDir });
 }
 
 async function main() {
   const command = args[0];
   if (!command || has('--help')) return usage();
-  if (command === 'hosts') return output(listAdapters().map((adapter) => ({ id: adapter.id, revision: adapter.revision, capabilities: adapter.capabilities })));
+  if (command === 'hosts') return output(listAdapters().map((adapter) => ({ id: adapter.id, revision: adapter.revision, capabilities: 'event-conditioned; use event_capabilities', event_capabilities: adapter.eventCapabilities })));
   if (command === 'doctor') { const store = new TraceStore(resolve(option('--state-dir', '.chamber'))); return output({ state_dir: store.stateDir, trace_records: (await store.query()).length, adapters: listAdapters().map((adapter) => adapter.id), global_config_modified: false }); }
   if (command === 'trace') { const store = new TraceStore(resolve(option('--state-dir', '.chamber'))); return output(await store.query({ sessionId: option('--session-id'), limit: Number(option('--limit', '100')) })); }
   if (command === 'evidence') { const store = new TraceStore(resolve(option('--state-dir', '.chamber'))); const records = await store.query({ sessionId: option('--session-id') }); const events = records.map((record) => record.event).filter(Boolean); return output(qualityEvidence(events, events[0]?.worker_profile ?? { host: 'unknown', policy_revision: 'unknown' })); }
   if (command === 'normalize') return normalize();
+  if (command === 'hook') return hook();
   if (command === 'install') return install(false);
   if (command === 'uninstall') return install(true);
   if (command === 'demo') return demo();

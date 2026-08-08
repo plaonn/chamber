@@ -1,6 +1,7 @@
 export const EVENT_SCHEMA_VERSION = 'chamber.event.v1';
 export const QUALITY_EVIDENCE_SCHEMA_VERSION = 'chamber.quality-evidence.v1';
-export const TRACE_SCHEMA_VERSION = 'chamber.trace.v1';
+export const TRACE_SCHEMA_VERSION = 'chamber.trace.v2';
+export const TRACE_PERSISTENCE_REVISION = 'minimized-v2';
 
 export const LIFECYCLES = new Set([
   'session.start', 'session.end', 'prompt.submit', 'model.before', 'model.after',

@@ -6,4 +6,4 @@
 - Add fixtures and tests for every adapter or schema behavior change.
 - Never run installation against a user's global agent configuration during tests. Use `--config-dir` fixtures and `--dry-run`.
 - Store only redacted event material. Do not commit trace files or credentials.
-- Run `pnpm test`, `pnpm lint`, and `pnpm typecheck` before handoff.
+- Run `pnpm test` and `pnpm check` before handoff.
