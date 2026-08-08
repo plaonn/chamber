@@ -40,6 +40,8 @@ chamber hosts
 chamber doctor [--state-dir DIR]
 chamber trace [--state-dir DIR] [--session-id ID]
 chamber evidence [--state-dir DIR] [--session-id ID]
+chamber summary [--state-dir DIR]
+chamber migrate --from DIR [--state-dir DIR]
 chamber outcome --session-id ID --status accepted|rejected|unknown [--state-dir DIR]
 chamber normalize --host codex|gemini --input event.json [--state-dir DIR]
 chamber hook --host codex|gemini [--state-dir DIR]
@@ -48,6 +50,10 @@ chamber uninstall --host codex|gemini --config-dir ./test-config [--dry-run]
 ```
 
 `install` is a reversible, isolated registration manifest writer for testing Chamber registration. It never edits global Codex or Gemini configuration unless an operator explicitly supplies its real config directory. A real host-registration command remains gated on current official contract verification and is not part of this MVP's automated tests.
+
+Chamber stores minimized traces in a stable user-level state directory by default. `CHAMBER_STATE_DIR` overrides both that default and `--state-dir` for every hook and operator command. `migrate --from DIR` imports only minimized, event-identified records, deduplicates by event ID, and never removes the source.
+
+`evidence --session-id ID` evaluates exactly that session. Without an ID, Chamber infers the only recorded session or returns `selection_required` when the store has more than one. `summary` is intentionally descriptive: it reports aggregate session, outcome, worker, task-class, and verification counts while leaving `success_probability` unestimated.
 
 ## Architecture
 

@@ -1,14 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { promisify } from 'node:util';
 import { getAdapter } from '../src/adapters/index.js';
-import { qualityEvidence } from '../src/evidence.js';
+import { evidenceSelection, qualityEvidence, traceSummary } from '../src/evidence.js';
 import { DEFAULT_POLICY_PROFILE, evaluatePolicy } from '../src/policy.js';
 import { TraceStore } from '../src/trace-store.js';
+import { resolveStateDir } from '../src/state.js';
 
 const exec = promisify(execFile);
 const runWithInput = (file, args, input, options = {}) => new Promise((resolve, reject) => {
@@ -137,4 +138,53 @@ test('explicit outcome recording preserves session worker provenance without tra
   const outcome = records.at(-1).event; assert.equal(outcome.lifecycle, 'outcome'); assert.equal(outcome.payload.status, 'accepted');
   const evidence = JSON.parse((await exec(process.execPath, [cli, 'evidence', '--state-dir', dir, '--session-id', 'outcome-session'])).stdout);
   assert.equal(evidence.outcome, 'accepted'); assert.equal(evidence.task_class, 'implementation'); await rm(dir, { recursive: true });
+});
+
+test('state resolution is stable outside the repository and CHAMBER_STATE_DIR wins over flags', () => {
+  assert.equal(resolveStateDir({ homeDirectory: '/home/operator', operatingSystem: 'linux', environment: {} }), '/home/operator/.local/state/chamber');
+  assert.equal(resolveStateDir({ homeDirectory: '/Users/operator', operatingSystem: 'darwin', environment: {} }), '/Users/operator/Library/Application Support/Chamber');
+  assert.equal(resolveStateDir({ explicitStateDir: '/flag-state', environment: { CHAMBER_STATE_DIR: '/environment-state' } }), '/environment-state');
+});
+
+test('evidence requires a session selection when a store has multiple sessions', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-sessions-')); const adapter = getAdapter('gemini'); const store = new TraceStore(dir);
+  for (const sessionId of ['one', 'two']) {
+    const event = adapter.normalize({ hook_event_name: 'BeforeAgent', session_id: sessionId, prompt: 'Implement feature' }, { worker_profile: profile(adapter) });
+    await store.append({ kind: 'canonical_event', event, policy_decision: {} });
+  }
+  const records = await store.query({ limit: Infinity });
+  assert.deepEqual(evidenceSelection(records).status, 'selection_required');
+  assert.equal(evidenceSelection(records).distinct_session_count, 2);
+  assert.equal(evidenceSelection(await store.query({ sessionId: 'one' }), 'one').freshness, 'current-session');
+  await rm(dir, { recursive: true });
+});
+
+test('trace summary keeps aggregate counts descriptive and does not estimate success probability', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-summary-')); const adapter = getAdapter('gemini'); const store = new TraceStore(dir);
+  const event = adapter.normalize({ hook_event_name: 'AfterTool', session_id: 'summary', tool_name: 'run_shell_command', tool_input: { command: 'pnpm test' }, tool_response: { llmContent: 'tests passed', returnDisplay: 'tests passed' } }, { worker_profile: profile(adapter) });
+  await store.append({ kind: 'canonical_event', event, policy_decision: {} });
+  const summary = traceSummary(await store.query({ limit: Infinity }));
+  assert.equal(summary.distinct_session_count, 1); assert.equal(summary.verification_counts.passed, 1); assert.equal(summary.success_probability, null);
+  await rm(dir, { recursive: true });
+});
+
+test('migration imports minimized records once and leaves the source trace intact', async () => {
+  const source = await mkdtemp(join(tmpdir(), 'chamber-source-')); const destination = await mkdtemp(join(tmpdir(), 'chamber-destination-')); const adapter = getAdapter('gemini'); const sourceStore = new TraceStore(source);
+  const event = adapter.normalize({ hook_event_name: 'BeforeAgent', session_id: 'migrate', prompt: 'Implement feature' }, { worker_profile: profile(adapter) });
+  await sourceStore.append({ kind: 'canonical_event', event, policy_decision: {} });
+  const sourceText = await readFile(join(source, 'trace.jsonl'), 'utf8'); const destinationStore = new TraceStore(destination);
+  assert.deepEqual(await destinationStore.migrateFrom(source), { source_records: 1, imported_records: 1, duplicate_records: 0, destination_records: 1, distinct_sessions: 1 });
+  assert.equal((await destinationStore.migrateFrom(source)).duplicate_records, 1);
+  assert.equal(await readFile(join(source, 'trace.jsonl'), 'utf8'), sourceText);
+  await rm(source, { recursive: true }); await rm(destination, { recursive: true });
+});
+
+test('doctor reports fixture hook registration without claiming global configuration mutation', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-doctor-')); const configDir = join(dir, 'config'); await mkdir(configDir);
+  const entrypoint = join(dir, 'chamber.js'); await writeFile(entrypoint, '');
+  await writeFile(join(configDir, 'hooks.json'), JSON.stringify({ SessionStart: [{ hooks: [{ type: 'command', command: `node ${entrypoint} hook --host codex` }] }] }));
+  const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  const doctor = JSON.parse((await exec(process.execPath, [cli, 'doctor', '--state-dir', dir, '--config-dir', configDir])).stdout);
+  assert.equal(doctor.codex_hook.registration, 'registered'); assert.equal(doctor.codex_hook.entrypoint, 'registered'); assert.equal('global_config_modified' in doctor, false);
+  await rm(dir, { recursive: true });
 });

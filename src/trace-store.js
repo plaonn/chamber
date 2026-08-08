@@ -32,7 +32,7 @@ function persistedEvent(event) {
 }
 
 export class TraceStore {
-  constructor(stateDir = '.chamber', { recordRawVendor = false } = {}) {
+  constructor(stateDir, { recordRawVendor = false } = {}) {
     this.stateDir = stateDir; this.file = join(stateDir, 'trace.jsonl'); this.recordRawVendor = recordRawVendor;
   }
   async append(record, { recordRawVendor = this.recordRawVendor } = {}) {
@@ -59,5 +59,35 @@ export class TraceStore {
       if (error.code === 'ENOENT') return [];
       throw error;
     }
+  }
+  async migrateFrom(sourceDir) {
+    const sourceFile = join(sourceDir, 'trace.jsonl');
+    let sourceRecords;
+    try {
+      sourceRecords = (await readFile(sourceFile, 'utf8')).trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    } catch (error) {
+      if (error.code === 'ENOENT') return { source_records: 0, imported_records: 0, duplicate_records: 0, distinct_sessions: 0 };
+      throw new Error(`cannot safely read migration source: ${error.message}`);
+    }
+    for (const record of sourceRecords) {
+      if (!record?.event?.event_id || record.persistence?.mode !== 'allowlist-minimized' || record.persistence?.raw_vendor_recorded) {
+        throw new Error('cannot safely migrate a record without minimized event identity');
+      }
+    }
+    const existing = await this.query({ limit: Infinity });
+    const known = new Set(existing.map((record) => record.event?.event_id).filter(Boolean));
+    const importable = sourceRecords.filter((record) => !known.has(record.event.event_id));
+    if (importable.length) {
+      await mkdir(this.stateDir, { recursive: true });
+      await appendFile(this.file, `${importable.map((record) => JSON.stringify(record)).join('\n')}\n`, 'utf8');
+    }
+    const all = [...existing, ...importable];
+    return {
+      source_records: sourceRecords.length,
+      imported_records: importable.length,
+      duplicate_records: sourceRecords.length - importable.length,
+      destination_records: all.length,
+      distinct_sessions: new Set(all.map((record) => record.event?.session_id).filter(Boolean)).size
+    };
   }
 }
