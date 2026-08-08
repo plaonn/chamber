@@ -16,7 +16,7 @@ Required fields: `event_id`, `occurred_at`, `session_id`, `lifecycle`, `host`, a
 }
 ```
 
-## Next contract: `chamber.finding.v1`
+## `chamber.finding.v1`
 
 `chamber.finding.v1` is the planned structured output of a deterministic detector or validator. It reports an observable condition, not free-form advice and not a generated repair plan.
 
@@ -53,7 +53,7 @@ Example:
 
 The persisted projection must not include raw prompts, completion text, command strings, tool output, or arbitrary semantic excerpts merely to justify a finding. Use canonical event identifiers and bounded classifications where possible.
 
-## Next contract: `chamber.intervention.v1`
+## `chamber.intervention.v1`
 
 `chamber.intervention.v1` records the policy-selected response to a finding. Chamber does not generate unrestricted correction prose; text-bearing interventions select a versioned fixed template and bounded parameters.
 
@@ -128,7 +128,7 @@ Policy enforcement must distinguish:
 - `runtime_verified_capabilities`: demonstrated by current native smoke or equivalent evidence;
 - `effective_capabilities`: the supported intersection used by policy enforcement.
 
-A future serialized capability record should include host/runtime version, adapter revision, event or hook name, verification provenance, and freshness. Until that record exists, enforcement must not infer effective capability from host documentation alone.
+The serialized capability evidence records the bounded native, adapter, runtime-verified, and effective capability sets with the selected intervention. Runtime-verified capability is empty by default; enforcement must not infer it from host documentation or adapter intent alone.
 
 ## Current `chamber.quality-evidence.v1`
 
@@ -156,4 +156,4 @@ It should continue to avoid transcripts and free-form reviewer feedback by defau
 
 The persisted trace is a safe projection, stamped `persistence_revision: "minimized-v2"` and `persistence.mode: "allowlist-minimized"`. It also records whether raw vendor storage was opted in and that redaction remains a defense-in-depth layer. It stores no prompt, final assistant output, command text, tool output, arbitrary tool input, or raw vendor payload by default. A tool record can retain only `{classification, execution, source, provenance, limitation}` for verification. It may retain only bounded `task_classification` `{value, revision, provenance}` and bounded outcome `{status, outcome_provenance}`. This boundary is intentional: raw data is an in-memory adapter/policy input, not ordinary local telemetry.
 
-When finding/intervention contracts are implemented, their persisted representation must follow the same data-minimization rule: stable codes, revisions, bounded parameters, canonical event references, capability provenance, and result state are appropriate; prompts, generated text, raw tool output, and arbitrary vendor payload are not.
+Finding/intervention records follow the same data-minimization rule: stable codes, revisions, bounded parameters, canonical event references, capability provenance, and result state are appropriate; prompts, generated text, raw tool output, and arbitrary vendor payload are not.

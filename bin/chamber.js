@@ -53,8 +53,8 @@ async function normalize() {
   const workerProfile = profile(adapter, { host_version: raw.codex_version ?? raw.gemini_version });
   const event = adapter.normalize(raw, { session_id: option('--session-id', 'standalone'), worker_profile: workerProfile });
   const store = new TraceStore(stateDir());
-  const history = (await store.query({ sessionId: event.session_id })).map((record) => record.event);
-  const decision = evaluatePolicy(event, history, DEFAULT_POLICY_PROFILE, adapter.capabilitiesFor(event));
+  const history = await store.query({ sessionId: event.session_id });
+  const decision = evaluatePolicy(event, history, DEFAULT_POLICY_PROFILE, adapter.capabilitiesFor(event), { adapterCapabilities: adapter.adapterCapabilitiesFor(event) });
   await store.append({ kind: 'canonical_event', event, policy_decision: decision, raw_vendor_event: raw }, { recordRawVendor: has('--record-raw-vendor') });
   output({ event, decision, host_response: adapter.toHostResponse(decision, event) });
 }
@@ -67,9 +67,9 @@ async function hook() {
   const workerProfile = profile(adapter, { model: raw.model, host_version: raw.codex_version ?? raw.gemini_version });
   const event = adapter.normalize(raw, { session_id: raw.session_id, worker_profile: workerProfile });
   const store = new TraceStore(stateDir());
-  const history = (await store.query({ sessionId: event.session_id })).map((record) => record.event);
+  const history = await store.query({ sessionId: event.session_id });
   const policy = { ...DEFAULT_POLICY_PROFILE, mode: process.env.CHAMBER_MODE ?? DEFAULT_POLICY_PROFILE.mode };
-  const decision = evaluatePolicy(event, history, policy, adapter.capabilitiesFor(event));
+  const decision = evaluatePolicy(event, history, policy, adapter.capabilitiesFor(event), { adapterCapabilities: adapter.adapterCapabilitiesFor(event) });
   await store.append({ kind: 'canonical_event', event, policy_decision: decision, raw_vendor_event: raw }, { recordRawVendor: process.env.CHAMBER_RECORD_RAW_VENDOR === '1' });
   output(adapter.toHostResponse(decision, event));
 }

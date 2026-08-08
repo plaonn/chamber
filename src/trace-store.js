@@ -23,11 +23,38 @@ function persistedEvent(event) {
         provenance: verification.provenance,
         limitation: verification.limitation
       } : undefined,
+      mutation: event.payload?.mutation ? {
+        classification: event.payload.mutation.classification,
+        provenance: event.payload.mutation.provenance
+      } : undefined,
       task_classification: event.payload?.task_classification,
       status: event.payload?.status,
       outcome_provenance: event.payload?.outcome_provenance
     },
     vendor: { hook_event_name: event.vendor?.hook_event_name }
+  };
+}
+
+function persistedDecision(decision = {}) {
+  const finding = decision.finding;
+  const intervention = decision.intervention;
+  return {
+    action: decision.action,
+    mode: decision.mode,
+    degraded: decision.degraded,
+    finding: finding ? {
+      schema_version: finding.schema_version, finding_id: finding.finding_id, session_id: finding.session_id,
+      detected_at: finding.detected_at, code: finding.code, category: finding.category, basis: finding.basis,
+      detector_revision: finding.detector_revision, evidence: finding.evidence
+    } : undefined,
+    intervention: intervention ? {
+      schema_version: intervention.schema_version, intervention_id: intervention.intervention_id, session_id: intervention.session_id,
+      finding_id: intervention.finding_id, finding_code: intervention.finding_code, policy_profile: intervention.policy_profile,
+      policy_revision: intervention.policy_revision, type: intervention.type, template_id: intervention.template_id,
+      parameters: intervention.parameters, required_capabilities: intervention.required_capabilities,
+      effective_capabilities: intervention.effective_capabilities, capability_evidence: intervention.capability_evidence,
+      budget: intervention.budget, result: intervention.result
+    } : undefined
   };
 }
 
@@ -44,7 +71,7 @@ export class TraceStore {
       recorded_at: new Date().toISOString(),
       kind: record.kind,
       event: persistedEvent(record.event),
-      policy_decision: record.policy_decision
+      policy_decision: persistedDecision(record.policy_decision)
     };
     if (recordRawVendor && record.raw_vendor_event) envelope.raw_vendor_event = redact(record.raw_vendor_event);
     await appendFile(this.file, `${JSON.stringify(envelope)}\n`, 'utf8');

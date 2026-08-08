@@ -12,6 +12,8 @@ import { TraceStore } from '../src/trace-store.js';
 import { inspectCodexHookRegistration } from '../src/operator.js';
 import { resolveStateDir } from '../src/state.js';
 import { nativeControlsFromAdapter } from '../src/effective-worker.js';
+import { createEvent } from '../src/schema.js';
+import { classifyMutation } from '../src/mutation.js';
 
 const exec = promisify(execFile);
 const runWithInput = (file, args, input, options = {}) => new Promise((resolve, reject) => {
@@ -86,6 +88,36 @@ test('enforcement creates Gemini retry and degrades when the event cannot block'
   assert.deepEqual(degraded.degraded, ['can_block']);
 });
 
+test('meaningful mutation classifications are bounded and provider-neutral', () => {
+  assert.deepEqual(classifyMutation({ lifecycle: 'tool.after', toolName: 'apply_patch' }), { classification: 'meaningful', provenance: 'canonical.tool-name-v1' });
+  assert.deepEqual(classifyMutation({ lifecycle: 'tool.after', toolName: 'run_shell_command' }), { classification: 'unknown', provenance: 'canonical.tool-name-v1' });
+});
+
+test('verification freshness emits a minimized shadow intervention only after a meaningful mutation', () => {
+  const adapter = getAdapter('gemini'); const worker = profile(adapter);
+  const event = (id, lifecycle, payload = {}) => createEvent({ event_id: id, occurred_at: `2026-08-09T00:00:0${id.at(-1)}.000Z`, session_id: 'freshness', lifecycle, host: { runtime: 'fixture', adapter_revision: 'fixture' }, worker_profile: worker, payload });
+  const mutation = event('event-1', 'tool.after', { mutation: { classification: 'meaningful', provenance: 'fixture' } });
+  const verification = event('event-2', 'tool.after', { verification: { classification: 'recognized-check', execution: 'passed' } });
+  const finish = event('event-3', 'finish.before');
+  assert.equal(evaluatePolicy(finish, [mutation, verification], DEFAULT_POLICY_PROFILE, {}, { adapterCapabilities: {} }).finding, undefined);
+  const staleMutation = event('event-4', 'tool.after', { mutation: { classification: 'meaningful', provenance: 'fixture' } });
+  const stale = evaluatePolicy(finish, [verification, staleMutation], DEFAULT_POLICY_PROFILE, {}, { adapterCapabilities: {} });
+  assert.equal(stale.action, 'audit'); assert.equal(stale.finding.code, 'VERIFICATION_MISSING');
+  assert.equal(stale.finding.evidence.last_meaningful_mutation_event_id, 'event-4');
+  assert.equal(stale.intervention.result, 'shadowed'); assert.equal(stale.intervention.template_id, 'verification-required-v1');
+  assert.deepEqual(stale.intervention.parameters, { verification_state: 'missing' });
+});
+
+test('intervention budget exhausts and unverified enforcement degrades without host response', () => {
+  const adapter = getAdapter('gemini'); const worker = profile(adapter);
+  const event = (id, lifecycle, payload = {}) => createEvent({ event_id: id, occurred_at: `2026-08-09T00:00:0${id.at(-1)}.000Z`, session_id: 'budget', lifecycle, host: { runtime: 'fixture', adapter_revision: 'fixture' }, worker_profile: worker, payload });
+  const mutation = event('event-1', 'tool.after', { mutation: { classification: 'meaningful', provenance: 'fixture' } }); const finish = event('event-2', 'finish.before');
+  const first = evaluatePolicy(finish, [mutation], { ...DEFAULT_POLICY_PROFILE, mode: 'enforce' }, { can_retry_finish: true }, { adapterCapabilities: { can_retry_finish: true } });
+  assert.equal(first.intervention.result, 'degraded'); assert.equal(first.action, 'audit');
+  const second = evaluatePolicy(finish, [{ event: mutation }, { event: finish, policy_decision: first }], DEFAULT_POLICY_PROFILE, {}, { adapterCapabilities: {} });
+  assert.equal(second.intervention.result, 'budget_exhausted'); assert.equal(second.intervention.budget.used, 2);
+});
+
 test('native-shaped failed, cancelled, and signalled Gemini checks are not deterministic success evidence', async () => {
   const profile = { host: 'gemini', policy_revision: '1' };
   const events = [await normalize('codex', 'codex-tool-after.json'), await normalize('gemini', 'gemini-after-tool.json'), await normalize('gemini', 'gemini-after-tool-failed.json'), await normalize('gemini', 'gemini-after-tool-cancelled.json'), await normalize('gemini', 'gemini-after-tool-signal.json')];
@@ -112,6 +144,16 @@ test('trace projection never persists synthetic prompt, command, output, or raw 
   const text = await readFile(join(dir, 'trace.jsonl'), 'utf8');
   for (const secret of ['SECRET_PROMPT_123', 'SECRET_OUTPUT_456', 'SECRET_COMMAND_789', 'SECRET_VENDOR_ABC', 'SECRET_RAW_DEF', 'SECRET_NESTED_GHI']) assert.doesNotMatch(text, new RegExp(secret));
   assert.doesNotMatch(text, /raw_vendor_event/); assert.match(text, /"raw_vendor_recorded":false/); assert.match(text, /minimized-v2/); assert.match(text, /task_classification/); await rm(dir, { recursive: true });
+});
+
+test('trace projection persists only bounded finding and intervention evidence', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-intervention-')); const adapter = getAdapter('gemini'); const store = new TraceStore(dir);
+  const mutation = createEvent({ session_id: 'persist', lifecycle: 'tool.after', host: { runtime: 'fixture', adapter_revision: 'fixture' }, worker_profile: profile(adapter), payload: { mutation: { classification: 'meaningful', provenance: 'fixture' } } });
+  const finish = createEvent({ session_id: 'persist', lifecycle: 'finish.before', host: { runtime: 'fixture', adapter_revision: 'fixture' }, worker_profile: profile(adapter), payload: { completion_output: 'SECRET_COMPLETION' } });
+  const decision = evaluatePolicy(finish, [mutation], DEFAULT_POLICY_PROFILE, {}, { adapterCapabilities: {} });
+  await store.append({ kind: 'canonical_event', event: finish, policy_decision: decision });
+  const text = await readFile(join(dir, 'trace.jsonl'), 'utf8');
+  assert.match(text, /VERIFICATION_MISSING/); assert.match(text, /verification-required-v1/); assert.doesNotMatch(text, /SECRET_COMPLETION/); await rm(dir, { recursive: true });
 });
 
 test('raw vendor recording is an explicit debug opt-in and redacts synthetic secret fields', async () => {

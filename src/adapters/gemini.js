@@ -4,6 +4,7 @@ import { capabilities } from '../capabilities.js';
 import { geminiAfterToolVerification } from '../verification.js';
 import { classifyEphemeralTask } from '../task-classification.js';
 import { unknownNativeControls } from '../effective-worker.js';
+import { classifyMutation } from '../mutation.js';
 
 function lifecycle(name) {
   return ({ SessionStart: 'session.start', SessionEnd: 'session.end', BeforeTool: 'tool.before', AfterTool: 'tool.after', BeforeAgent: 'prompt.submit', AfterAgent: 'finish.before', BeforeModel: 'model.before', AfterModel: 'model.after' })[name];
@@ -45,6 +46,7 @@ export const geminiAdapter = createAdapter({
         command: raw.tool_input?.command,
         tool_response: raw.tool_response,
         verification: geminiAfterToolVerification({ command: raw.tool_input?.command, toolName: tool, toolInput: raw.tool_input, toolResponse: raw.tool_response }),
+        mutation: classifyMutation({ lifecycle: mapped, toolName: tool }),
         task_classification: classifyEphemeralTask({ prompt: raw.prompt, command: raw.tool_input?.command })
       },
       vendor: { hook_event_name: raw.hook_event_name }

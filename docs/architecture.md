@@ -51,7 +51,7 @@ Policy should operate on bounded derived state rather than repeatedly interpreti
 - intervention counts by finding/policy revision;
 - whether required evidence became stale after a later mutation.
 
-Verification freshness is an important first rule: a successful check that occurred before a later meaningful code mutation must not prove the final state. The current MVP only checks for successful verification somewhere in history; freshness-aware trajectory state is a next implementation step.
+Verification freshness is the first implemented trajectory rule: a successful check that occurred before a later meaningful code mutation does not prove the final state. The reducer consumes only bounded canonical mutation classifications; unclassifiable activity remains `unknown` rather than being treated as a semantic mutation. At finish, a post-mutation missing verification emits `VERIFICATION_MISSING` with event identifiers and bounded verification facts only.
 
 ## Capability model
 
@@ -123,7 +123,7 @@ Exact provenance is for reproducibility and contamination prevention. Estimation
 
 Gemini CLI's documented command hooks cover session, agent, model, and tool lifecycle events and use JSON stdin/stdout. Its documented structured allow/deny response is used directly. Codex CLI 0.147.0 exposes lifecycle hooks behind its enabled hooks feature and reports hook definitions with `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop` naming; tool coverage depends on the native handler. Codex adapter output is event-aware and uses native no-op/block semantics, but real native smoke coverage is still required before claiming all handlers or a global registration path work.
 
-The current adapters expose event capability intent, but the three-layer effective-capability contract above is not yet implemented. Until that work lands, capability claims used for enforcement must be treated conservatively and verified by native smoke.
+The reducer records a bounded verification-correction selection with a one-use budget and fixed `verification-required-v1` template. `audit-default@1` shadows the selection and remains non-blocking. Runtime-verified capability is empty unless bounded evidence is supplied, so enforce mode degrades rather than claiming a live retry/block path from adapter intent alone.
 
 ## Host registration boundary
 

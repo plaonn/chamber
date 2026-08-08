@@ -4,6 +4,7 @@ import { capabilities } from '../capabilities.js';
 import { codexPostToolVerification } from '../verification.js';
 import { classifyEphemeralTask } from '../task-classification.js';
 import { unknownNativeControls } from '../effective-worker.js';
+import { classifyMutation } from '../mutation.js';
 
 function lifecycle(name) {
   return ({ SessionStart: 'session.start', UserPromptSubmit: 'prompt.submit', PreToolUse: 'tool.before', PostToolUse: 'tool.after', Stop: 'finish.before', SessionEnd: 'session.end' })[name];
@@ -43,6 +44,7 @@ export const codexAdapter = createAdapter({
         command: raw.tool_input?.command,
         tool_response: raw.tool_response,
         verification: codexPostToolVerification({ command: raw.tool_input?.command, toolName: raw.tool_name }),
+        mutation: classifyMutation({ lifecycle: mapped, toolName: raw.tool_name }),
         task_classification: classifyEphemeralTask({ prompt: raw.prompt, command: raw.tool_input?.command })
       },
       vendor: { hook_event_name: raw.hook_event_name, tool_use_id: raw.tool_use_id }
