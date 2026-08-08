@@ -4,11 +4,17 @@
   "private": true,
   "description": "Local-first audit and policy layer for native AI coding agents.",
   "type": "module",
-  "bin": { "chamber": "./bin/chamber.js" },
-  "engines": { "node": ">=20" },
+  "bin": {
+    "chamber": "./bin/chamber.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "node --test",
     "check": "node --check bin/chamber.js && node --check scripts/*.mjs && node --check src/*.js && node --check src/adapters/*.js",
+    "brand:generate": "python3 brand/scripts/generate_wordmark_assets.py && python3 brand/scripts/generate_presentation_assets.py",
+    "check:brand": "python3 brand/scripts/check_brand_assets.py",
     "demo": "node bin/chamber.js demo --state-dir .chamber-demo",
     "smoke:gemini": "node scripts/gemini-native-smoke.mjs"
   }

@@ -30,6 +30,19 @@ pnpm smoke:gemini
 
 The smoke makes a real Gemini CLI model call using the developer's existing authentication, but writes hook configuration only inside a disposable project-local directory and removes that directory afterward.
 
+### Brand changes
+
+Brand assets have their own deterministic validation path. When a change touches `brand/` or repository presentation assets, run:
+
+```bash
+pnpm brand:generate
+pnpm check:brand
+```
+
+`pnpm test` and `pnpm check` validate the JavaScript runtime surface; they do not replace the brand-specific generator/spec/SVG synchronization check.
+
+Canonical marks and visual rules are defined under [`brand/`](brand/README.md). Repository-facing README/social assets under `brand/assets/presentation/` are derived presentation surfaces and must not introduce a new or modified mark.
+
 ## Pull requests
 
 A focused pull request should explain:

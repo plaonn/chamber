@@ -29,3 +29,5 @@ jobs:
         run: pnpm test
       - name: Run static checks
         run: pnpm check
+      - name: Check brand assets
+        run: pnpm check:brand

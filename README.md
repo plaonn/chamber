@@ -1,22 +1,20 @@
-# Chamber
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/assets/presentation/chamber-readme-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="brand/assets/presentation/chamber-readme-light.svg">
+    <img alt="Chamber" src="brand/assets/presentation/chamber-readme-light.svg" width="840">
+  </picture>
+</p>
 
-Chamber is a local-first audit, policy, and quality-evidence layer around native AI coding agents. It does not replace Codex, Gemini CLI, Cursor, or their tool loops. Host adapters translate lifecycle events into a vendor-neutral canonical event model; the Chamber core records traces, evaluates policy, and emits evidence that another system can consume.
+<p align="center"><strong>Local-first audit, policy, and quality-evidence layer for native AI coding agents.</strong></p>
 
-The initial MVP supports fixture-validated Codex and Gemini CLI adapters, audit-only policy evaluation, local JSONL traces, and a standalone Node CLI. It deliberately does not own task queues, model prices, quotas, or economic routing. Chamber also has no Orca dependency: Orca may be used as an optional interaction surface for native worker sessions, but Chamber observes and controls those workers through their native runtime hooks rather than an Orca-specific integration.
+Chamber sits around native coding-agent runtimes rather than replacing them. Host adapters translate lifecycle events into a vendor-neutral canonical event model; the Chamber core records minimized traces, evaluates deterministic policy, and emits portable quality evidence that other systems can consume.
 
-## License and brand
-
-Repository contents are licensed under the [Apache License, Version 2.0](LICENSE) unless otherwise noted.
-
-The software license does not grant rights to present another product or distribution as the official Chamber project. Truthful descriptive use remains allowed; see [TRADEMARKS.md](TRADEMARKS.md) for the lightweight brand-use policy.
-
-## Contributing
-
-Contributions are welcome. Chamber currently uses lightweight maintainer-led governance and does not require a CLA or DCO. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The current MVP supports fixture-validated Codex and Gemini CLI adapters, audit-only policy evaluation, a stable user-level JSONL state store, session-aware evidence, and a standalone Node CLI. Chamber deliberately does not own task queues, model prices, quotas, economic routing, or an Orca-specific runtime contract.
 
 ## Quick start
 
-Requires Node 20+ and pnpm.
+Requires Node.js 20+ and pnpm.
 
 ```bash
 pnpm test
@@ -58,22 +56,37 @@ Chamber stores minimized traces in a stable user-level state directory by defaul
 ## Architecture
 
 ```text
-native agent → thin host adapter → canonical Chamber event
-                                  ↓
+native agent -> thin host adapter -> canonical Chamber event
+                                  |
+                                  v
                            trace / policy / evidence
-                                  ↓
+                                  |
+                                  v
                          portable quality evidence
 ```
 
-Read [the architecture contract](docs/architecture.md), the [event and evidence schemas](docs/schema.md), and the [storage decision](docs/decisions/0001-jsonl-local-store.md).
+Read the [architecture contract](docs/architecture.md), [event and evidence schemas](docs/schema.md), and [storage decision](docs/decisions/0001-jsonl-local-store.md).
 
 ## Development
 
 ```bash
 pnpm test
 pnpm check
+pnpm check:brand
 ```
+
+`pnpm test` and `pnpm check` validate the JavaScript runtime surface. `pnpm check:brand` regenerates deterministic brand SVGs, parses the brand spec/assets, and verifies that generated brand files are committed in sync.
 
 Fixtures are sanitized and do not invoke external agent runtimes. See `test/fixtures/`.
 
 `outcome` records only an explicit bounded status (`accepted`, `rejected`, or `unknown`) against an existing traced session. It reuses that session's worker provenance and stores neither reviewer feedback nor transcripts.
+
+## Contributing
+
+Contributions are welcome. Chamber currently uses lightweight maintainer-led governance and does not require a CLA or DCO. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Brand
+
+The canonical standalone symbol, symbol-as-C wordmark, reproducible vector sources, usage rules, and derived presentation assets live under [`brand/`](brand/README.md).
+
+Repository contents are licensed under the [Apache License, Version 2.0](LICENSE) unless otherwise noted. The software license does not grant rights to present another product or distribution as the official Chamber project. Truthful descriptive use remains allowed; see [TRADEMARKS.md](TRADEMARKS.md).
