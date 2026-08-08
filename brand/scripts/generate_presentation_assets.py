@@ -15,8 +15,17 @@ Q = lambda tag: f"{{{SVG_NS}}}{tag}"
 PRESENTATION.mkdir(exist_ok=True)
 
 
-def flattened_wordmark(background, title):
+def source_children():
     source = ET.parse(WORDMARK).getroot()
+    return source, [
+        deepcopy(child)
+        for child in list(source)
+        if child.tag not in (Q("title"), Q("desc"))
+    ]
+
+
+def flattened_wordmark(background, title):
+    _, children = source_children()
     root = ET.Element(
         Q("svg"),
         {
@@ -41,23 +50,45 @@ def flattened_wordmark(background, title):
             "fill": background,
         },
     )
-    for child in list(source):
-        if child.tag in (Q("title"), Q("desc")):
-            continue
-        root.append(deepcopy(child))
+    root.extend(children)
     return ET.tostring(root, encoding="unicode") + "\n"
 
 
 def social_preview_source():
-    return (
-        f'<svg xmlns="{SVG_NS}" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">\n'
-        '<title id="title">Chamber social preview</title>\n'
-        '<desc id="desc">Chamber wordmark centered on the canonical dark brand background.</desc>\n'
-        '<rect width="1280" height="640" rx="48" fill="#111322"/>\n'
-        '<image href="chamber-readme-dark.svg" x="64" y="166" width="1152" height="308" '
-        'preserveAspectRatio="xMidYMid meet"/>\n'
-        '</svg>\n'
+    source, children = source_children()
+    min_x, min_y, width, height = map(float, source.get("viewBox").split())
+    canvas_width, canvas_height = 1280.0, 640.0
+    target_width = 1080.0
+    scale = target_width / width
+    target_height = height * scale
+    translate_x = (canvas_width - target_width) / 2 - min_x * scale
+    translate_y = (canvas_height - target_height) / 2 - min_y * scale
+
+    root = ET.Element(
+        Q("svg"),
+        {
+            "viewBox": "0 0 1280 640",
+            "role": "img",
+            "aria-labelledby": "title desc",
+        },
     )
+    ET.SubElement(root, Q("title"), {"id": "title"}).text = "Chamber social preview"
+    ET.SubElement(root, Q("desc"), {"id": "desc"}).text = (
+        "Canonical Chamber symbol-as-C wordmark centered on the dark brand background."
+    )
+    ET.SubElement(root, Q("rect"), {"width": "1280", "height": "640", "fill": "#111322"})
+    group = ET.SubElement(
+        root,
+        Q("g"),
+        {
+            "transform": (
+                f"translate({translate_x:.3f} {translate_y:.3f}) "
+                f"scale({scale:.6f})"
+            )
+        },
+    )
+    group.extend(children)
+    return ET.tostring(root, encoding="unicode") + "\n"
 
 
 (PRESENTATION / "chamber-readme-light.svg").write_text(
