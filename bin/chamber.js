@@ -15,7 +15,7 @@ const args = process.argv.slice(2);
 const option = (name, fallback) => { const index = args.indexOf(name); return index < 0 ? fallback : args[index + 1]; };
 const has = (name) => args.includes(name);
 const output = (value) => process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
-const usage = () => console.log(`Usage: chamber <hosts|doctor|trace|evidence|summary|outcome|migrate|normalize|install|uninstall|demo> [options]
+const usage = () => console.log(`Usage: chamber <hosts|doctor|trace|evidence|summary|dogfood|outcome|migrate|normalize|install|uninstall|demo> [options]
 
 Commands:
   hosts                         list adapter capability matrices
@@ -23,9 +23,10 @@ Commands:
   trace [--state-dir DIR]       query redacted trace records
   evidence [--state-dir DIR]    export session quality evidence
   summary [--state-dir DIR]     aggregate minimized trace counts
+  dogfood [--state-dir DIR]     compact session-level outcome and policy coverage
   migrate --from DIR [--state-dir DIR]
                                 non-destructively import minimized trace records
-  outcome --session-id ID --status accepted|rejected|unknown
+  outcome (--session-id ID|--latest-unlabeled) --status accepted|rejected|unknown
                                 record explicit, transcript-free outcome feedback
   normalize --host H --input F  normalize a host fixture/event and record audit
   hook --host H                  stdin/stdout native-hook entrypoint
@@ -75,12 +76,26 @@ async function hook() {
 }
 
 async function outcome() {
-  const sessionId = option('--session-id'); const status = option('--status');
-  if (!sessionId) throw new Error('outcome requires --session-id');
+  let sessionId = option('--session-id'); const status = option('--status');
+  if (sessionId && has('--latest-unlabeled')) throw new Error('outcome accepts one session selector');
   if (!['accepted', 'rejected', 'unknown'].includes(status)) throw new Error('outcome status must be accepted, rejected, or unknown');
   const store = new TraceStore(stateDir());
+  const all = await store.query({ limit: Infinity });
+  if (has('--latest-unlabeled')) {
+    const bySession = new Map();
+    for (const record of all) bySession.set(record.event?.session_id, [...(bySession.get(record.event?.session_id) ?? []), record]);
+    const candidates = [...bySession.entries()].filter(([id, records]) => id && !records.some((record) => record.event?.lifecycle === 'outcome')).map(([id]) => id);
+    if (candidates.length !== 1) return output({ status: candidates.length ? 'selection_required' : 'no_unlabeled_sessions', session_ids: candidates });
+    sessionId = candidates[0];
+  }
+  if (!sessionId) throw new Error('outcome requires --session-id or --latest-unlabeled');
   const history = await store.query({ sessionId }); const exemplar = history.at(-1)?.event;
   if (!exemplar) throw new Error('outcome requires an existing session trace');
+  const prior = history.filter((record) => record.event?.lifecycle === 'outcome').map((record) => record.event.payload?.status);
+  if (prior.length) {
+    if (prior.at(-1) === status) return output({ recorded: false, idempotent: true, session_id: sessionId, status, provenance: 'operator.explicit-v1' });
+    throw new Error('conflicting_acceptance_evidence: use an explicit future replacement contract');
+  }
   const event = createEvent({
     session_id: sessionId, lifecycle: 'outcome', host: exemplar.host, worker_profile: exemplar.worker_profile,
     payload: { status, outcome_provenance: 'operator.explicit-v1', task_classification: persistedTaskClass(history) },
@@ -129,7 +144,7 @@ async function main() {
   if (command === 'doctor') return doctor();
   if (command === 'trace') return output(await new TraceStore(stateDir()).query({ sessionId: option('--session-id'), limit: Number(option('--limit', '100')) }));
   if (command === 'evidence') { const store = new TraceStore(stateDir()); return output(evidenceSelection(await store.query({ sessionId: option('--session-id'), limit: Infinity }), option('--session-id'))); }
-  if (command === 'summary') return output(traceSummary(await new TraceStore(stateDir()).query({ limit: Infinity })));
+  if (command === 'summary' || command === 'dogfood') return output(traceSummary(await new TraceStore(stateDir()).query({ limit: Infinity })));
   if (command === 'migrate') return migrate();
   if (command === 'outcome') return outcome();
   if (command === 'normalize') return normalize();

@@ -193,6 +193,21 @@ test('explicit outcome recording preserves session worker provenance without tra
   assert.equal(evidence.outcome, 'accepted'); assert.equal(evidence.task_class, 'implementation'); await rm(dir, { recursive: true });
 });
 
+test('outcome latest-unlabeled is deterministic, idempotent, and rejects conflicting acceptance', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-outcome-selection-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  const seed = async (sessionId) => runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify({ hook_event_name: 'BeforeAgent', session_id: sessionId, prompt: 'Implement feature' }), { env: { ...process.env, CHAMBER_STATE_DIR: dir } });
+  await seed('one');
+  let result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--latest-unlabeled', '--status', 'accepted'])).stdout);
+  assert.deepEqual(result, { recorded: true, session_id: 'one', status: 'accepted', provenance: 'operator.explicit-v1' });
+  result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--session-id', 'one', '--status', 'accepted'])).stdout);
+  assert.equal(result.idempotent, true);
+  await assert.rejects(exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--session-id', 'one', '--status', 'rejected']), /conflicting_acceptance_evidence/);
+  await seed('two'); await seed('three');
+  result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--latest-unlabeled', '--status', 'accepted'])).stdout);
+  assert.deepEqual(result, { status: 'selection_required', session_ids: ['two', 'three'] });
+  await rm(dir, { recursive: true });
+});
+
 test('state resolution is stable outside the repository and CHAMBER_STATE_DIR wins over flags', () => {
   assert.equal(resolveStateDir({ homeDirectory: '/home/operator', operatingSystem: 'linux', environment: {} }), '/home/operator/.local/state/chamber');
   assert.equal(resolveStateDir({ homeDirectory: '/Users/operator', operatingSystem: 'darwin', environment: {} }), '/Users/operator/Library/Application Support/Chamber');
@@ -218,6 +233,17 @@ test('trace summary keeps aggregate counts descriptive and does not estimate suc
   await store.append({ kind: 'canonical_event', event, policy_decision: {} });
   const summary = traceSummary(await store.query({ limit: Infinity }));
   assert.equal(summary.distinct_session_count, 1); assert.equal(summary.session_task_sample_count, 1); assert.equal(summary.verification_event_counts.passed, 1); assert.equal(summary.worker_session_counts.gemini, 1); assert.equal(summary.success_probability, null);
+  assert.equal(summary.acceptance_unknown_session_count, 1); assert.deepEqual(summary.verification_session_counts, { passed: 1 });
+  await rm(dir, { recursive: true });
+});
+
+test('dogfood summary counts minimized findings, interventions, budgets, and capability gaps per session', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-dogfood-')); const adapter = getAdapter('gemini'); const store = new TraceStore(dir);
+  const event = adapter.normalize({ hook_event_name: 'AfterAgent', session_id: 'dogfood', prompt: 'Implement feature', prompt_response: 'done' }, { worker_profile: profile(adapter) });
+  await store.append({ kind: 'canonical_event', event, policy_decision: { action: 'audit', degraded: ['runtime-capability-unverified'], finding: { code: 'VERIFICATION_MISSING' }, intervention: { result: 'budget_exhausted' } } });
+  const summary = traceSummary(await store.query({ limit: Infinity }));
+  assert.deepEqual(summary.finding_counts, { VERIFICATION_MISSING: 1 }); assert.deepEqual(summary.intervention_result_counts, { budget_exhausted: 1 });
+  assert.equal(summary.budget_exhaustion_count, 1); assert.deepEqual(summary.capability_gap_counts, { 'runtime-capability-unverified': 1 }); assert.deepEqual(summary.recent_unlabeled_session_ids, ['dogfood']);
   await rm(dir, { recursive: true });
 });
 

@@ -5,6 +5,7 @@ import { factorizedEvaluation } from './effective-worker.js';
 
 export function qualityEvidence(events, workerProfile) {
   const outcomes = events.filter((event) => event.lifecycle === 'outcome');
+  const acceptance = outcomes.at(-1)?.payload.status ?? 'unknown';
   const verified = events.filter(isSuccessfulVerification).length;
   const taskClassification = persistedTaskClass(events);
   return {
@@ -12,7 +13,9 @@ export function qualityEvidence(events, workerProfile) {
     generated_at: new Date().toISOString(),
     worker_profile: workerProfile,
     task_class: taskClassification.value,
-    outcome: outcomes.at(-1)?.payload.status ?? 'unknown',
+    // `outcome` is retained for v1 consumers; it is explicit acceptance only.
+    outcome: acceptance,
+    acceptance: { status: acceptance, provenance: outcomes.at(-1)?.payload.outcome_provenance ?? null },
     verification_evidence_count: verified,
     evidence_count: events.length,
     freshness: events.length ? 'current-session' : 'none',
@@ -38,16 +41,32 @@ export function traceSummary(records) {
     session_id: sessionId,
     worker_profile: sessionEvents.at(-1)?.worker_profile,
     task_class: persistedTaskClass(sessionEvents).value,
-    outcome: sessionEvents.filter((event) => event.lifecycle === 'outcome').at(-1)?.payload?.status ?? 'unknown'
+    acceptance: sessionEvents.filter((event) => event.lifecycle === 'outcome').at(-1)?.payload?.status ?? 'unknown',
+    verification: sessionEvents.some(isSuccessfulVerification) ? 'passed' : sessionEvents.some((event) => event.payload?.verification?.execution === 'failed') ? 'failed' : 'unknown',
+    execution: sessionEvents.some((event) => event.lifecycle === 'finish.before' || event.lifecycle === 'finish.after') ? 'completed' : 'unknown',
+    finding_codes: records.filter((record) => record.event?.session_id === sessionId).map((record) => record.policy_decision?.finding?.code).filter(Boolean),
+    intervention_results: records.filter((record) => record.event?.session_id === sessionId).map((record) => record.policy_decision?.intervention?.result).filter(Boolean),
+    degraded: records.filter((record) => record.event?.session_id === sessionId).flatMap((record) => record.policy_decision?.degraded ?? [])
   }));
+  const flatten = (field) => sessions.flatMap((session) => session[field]);
   return {
     trace_records: records.length,
     distinct_session_count: sessions.length,
     session_task_sample_count: sessions.length,
-    outcome_counts: count(sessions.map((session) => session.outcome)),
+    outcome_counts: count(sessions.map((session) => session.acceptance)),
+    acceptance_counts: count(sessions.map((session) => session.acceptance)),
+    acceptance_labeled_session_count: sessions.filter((session) => session.acceptance !== 'unknown').length,
+    acceptance_unknown_session_count: sessions.filter((session) => session.acceptance === 'unknown').length,
+    execution_session_counts: count(sessions.map((session) => session.execution)),
+    verification_session_counts: count(sessions.map((session) => session.verification)),
     worker_session_counts: count(sessions.map((session) => session.worker_profile?.host ?? 'unknown')),
     task_class_session_counts: count(sessions.map((session) => session.task_class)),
     verification_event_counts: count(events.map((event) => event.payload?.verification?.execution ?? 'none')),
+    finding_counts: count(flatten('finding_codes')),
+    intervention_result_counts: count(flatten('intervention_results')),
+    budget_exhaustion_count: flatten('intervention_results').filter((result) => result === 'budget_exhausted').length,
+    capability_gap_counts: count(flatten('degraded')),
+    recent_unlabeled_session_ids: sessions.filter((session) => session.acceptance === 'unknown').slice(-10).map((session) => session.session_id),
     success_probability: null,
     uncertainty: 'not_estimated_in_mvp'
   };

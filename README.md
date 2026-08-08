@@ -24,6 +24,7 @@ node bin/chamber.js doctor --state-dir .chamber-demo
 node bin/chamber.js trace --state-dir .chamber-demo
 node bin/chamber.js evidence --state-dir .chamber-demo
 node bin/chamber.js outcome --state-dir .chamber-demo --session-id SESSION_ID --status accepted
+node bin/chamber.js dogfood --state-dir .chamber-demo
 pnpm smoke:gemini
 ```
 
@@ -41,6 +42,8 @@ chamber evidence [--state-dir DIR] [--session-id ID]
 chamber summary [--state-dir DIR]
 chamber migrate --from DIR [--state-dir DIR]
 chamber outcome --session-id ID --status accepted|rejected|unknown [--state-dir DIR]
+chamber outcome --latest-unlabeled --status accepted|rejected [--state-dir DIR]
+chamber dogfood [--state-dir DIR]
 chamber normalize --host codex|gemini --input event.json [--state-dir DIR]
 chamber hook --host codex|gemini [--state-dir DIR]
 chamber install --host codex|gemini --config-dir ./test-config [--dry-run]
@@ -80,6 +83,8 @@ pnpm check:brand
 Fixtures are sanitized and do not invoke external agent runtimes. See `test/fixtures/`.
 
 `outcome` records only an explicit bounded status (`accepted`, `rejected`, or `unknown`) against an existing traced session. It reuses that session's worker provenance and stores neither reviewer feedback nor transcripts.
+
+`outcome --latest-unlabeled` labels only when exactly one session has no explicit acceptance evidence; otherwise it returns a bounded `selection_required` queue without writing. Repeating the same label is idempotent, while a conflicting label is rejected. `dogfood` is a compact report of session-level acceptance, execution and verification coverage plus minimized finding, intervention, budget, capability-gap, and unlabeled-session counts. It never treats verification or completion as acceptance.
 
 ## Contributing
 
