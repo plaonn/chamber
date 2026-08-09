@@ -318,7 +318,7 @@ test('doctor reports fixture hook registration without claiming global configura
   await writeFile(join(configDir, 'hooks.json'), JSON.stringify({ SessionStart: [{ hooks: [{ type: 'command', command: `node ${entrypoint} hook --host codex` }] }] }));
   const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
   const doctor = JSON.parse((await exec(process.execPath, [cli, 'doctor', '--state-dir', dir, '--config-dir', configDir])).stdout);
-  assert.equal(doctor.codex_hook.registration, 'registered'); assert.equal(doctor.codex_hook.entrypoint, 'registered'); assert.equal('global_config_modified' in doctor, false);
+  assert.equal(doctor.codex_hook.registration, 'registered'); assert.equal(doctor.codex_hook.entrypoint, 'registered'); assert.equal(doctor.codex_hook.runtime_freshness.freshness, 'unverified'); assert.equal('global_config_modified' in doctor, false);
   await rm(dir, { recursive: true });
 });
 
@@ -326,6 +326,19 @@ test('hook diagnostics expand HOME in a stable entrypoint command', async () => 
   const dir = await mkdtemp(join(tmpdir(), 'chamber-hook-home-')); const configDir = join(dir, 'config'); await mkdir(configDir);
   const homeDirectory = join(dir, 'home'); await mkdir(homeDirectory); await writeFile(join(homeDirectory, 'chamber.js'), '');
   await writeFile(join(configDir, 'hooks.json'), JSON.stringify({ Stop: [{ hooks: [{ type: 'command', command: 'node $HOME/chamber.js hook --host codex' }] }] }));
-  assert.deepEqual(await inspectCodexHookRegistration({ configDir, homeDirectory }), { registration: 'registered', entrypoint: 'registered' });
+  assert.deepEqual(await inspectCodexHookRegistration({ configDir, homeDirectory }), { registration: 'registered', entrypoint: 'registered', runtime_freshness: { freshness: 'unverified' } });
+  await rm(dir, { recursive: true });
+});
+
+test('hook diagnostics report current, behind, and dirty runtime checkouts without fetching', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-runtime-')); const runtime = join(dir, 'runtime'); const remote = join(dir, 'remote.git'); const publisher = join(dir, 'publisher'); const configDir = join(dir, 'config');
+  await exec('git', ['init', '--initial-branch=main', runtime]); await exec('git', ['-C', runtime, 'config', 'user.email', 'test@example.invalid']); await exec('git', ['-C', runtime, 'config', 'user.name', 'Chamber test']);
+  await mkdir(join(runtime, 'bin')); await writeFile(join(runtime, 'bin', 'chamber.js'), ''); await exec('git', ['-C', runtime, 'add', '.']); await exec('git', ['-C', runtime, 'commit', '-m', 'initial runtime']);
+  await exec('git', ['clone', '--bare', runtime, remote]); await exec('git', ['-C', runtime, 'remote', 'add', 'origin', remote]); await exec('git', ['-C', runtime, 'fetch', 'origin']);
+  await mkdir(configDir); await writeFile(join(configDir, 'hooks.json'), JSON.stringify({ SessionStart: [{ hooks: [{ type: 'command', command: `node ${join(runtime, 'bin', 'chamber.js')} hook --host codex` }] }] }));
+  let inspected = await inspectCodexHookRegistration({ configDir }); assert.equal(inspected.runtime_freshness.freshness, 'current'); assert.equal(inspected.runtime_freshness.entrypoint_identity, 'bin/chamber.js');
+  await exec('git', ['clone', remote, publisher]); await exec('git', ['-C', publisher, 'config', 'user.email', 'test@example.invalid']); await exec('git', ['-C', publisher, 'config', 'user.name', 'Chamber test']); await writeFile(join(publisher, 'next.js'), 'next'); await exec('git', ['-C', publisher, 'add', '.']); await exec('git', ['-C', publisher, 'commit', '-m', 'advance canonical']); await exec('git', ['-C', publisher, 'push', 'origin', 'main']); await exec('git', ['-C', runtime, 'fetch', 'origin']);
+  inspected = await inspectCodexHookRegistration({ configDir }); assert.equal(inspected.runtime_freshness.freshness, 'behind');
+  await writeFile(join(runtime, 'bin', 'chamber.js'), 'dirty'); inspected = await inspectCodexHookRegistration({ configDir }); assert.equal(inspected.runtime_freshness.freshness, 'dirty');
   await rm(dir, { recursive: true });
 });
