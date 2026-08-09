@@ -16,6 +16,7 @@
     "brand:generate": "python3 brand/scripts/generate_wordmark_assets.py && python3 brand/scripts/generate_presentation_assets.py",
     "check:brand": "python3 brand/scripts/check_brand_assets.py",
     "demo": "node bin/chamber.js demo --state-dir .chamber-demo",
-    "smoke:gemini": "node scripts/gemini-native-smoke.mjs"
+    "smoke:gemini": "node scripts/gemini-native-smoke.mjs",
+    "smoke:codex": "node scripts/codex-native-smoke.mjs"
   }
 }

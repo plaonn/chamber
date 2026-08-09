@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { readFile, writeFile, mkdir, rename, stat } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { getAdapter, listAdapters } from '../src/adapters/index.js';
 import { TraceStore } from '../src/trace-store.js';
@@ -10,6 +12,7 @@ import { persistedTaskClass } from '../src/task-classification.js';
 import { inspectCodexHookRegistration } from '../src/operator.js';
 import { resolveStateDir } from '../src/state.js';
 import { unknownNativeControls } from '../src/effective-worker.js';
+import { checkClassification } from '../src/verification.js';
 
 const args = process.argv.slice(2);
 const MAX_SELECTION_CANDIDATES = 10;
@@ -31,6 +34,8 @@ Commands:
                                 record explicit, transcript-free outcome feedback
   normalize --host H --input F  normalize a host fixture/event and record audit
   hook --host H                  stdin/stdout native-hook entrypoint
+  verify --session-id ID --encoded-command BASE64
+                                execute one recognized check and record its exit status
   install --host H [--config-dir DIR] [--dry-run]
   uninstall --host H [--config-dir DIR] [--dry-run]
   demo [--state-dir DIR]        reproducible audit-only flow`);
@@ -48,6 +53,23 @@ function profile(adapter, overrides = {}) {
 async function configPath(host) { return join(resolve(option('--config-dir', '.chamber')), `${host}.hooks.json`); }
 async function exists(path) { try { await stat(path); return true; } catch { return false; } }
 const stateDir = () => resolveStateDir({ explicitStateDir: option('--state-dir') });
+const shellQuote = (value) => `'${String(value).replaceAll("'", "'\\\"'\\\"'")}'`;
+
+function codexVerificationResponse(raw) {
+  if (process.env.CHAMBER_CAPTURE_VERIFICATION !== '1'
+    || raw.hook_event_name !== 'PreToolUse'
+    || raw.tool_name !== 'Bash'
+    || checkClassification(raw.tool_input?.command) !== 'recognized-check'
+    || !raw.session_id) return {};
+  const encoded = Buffer.from(raw.tool_input.command, 'utf8').toString('base64');
+  const entrypoint = fileURLToPath(import.meta.url);
+  return {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse', permissionDecision: 'allow',
+      updatedInput: { command: `${shellQuote(process.execPath)} ${shellQuote(entrypoint)} verify --session-id ${shellQuote(raw.session_id)} --encoded-command ${encoded}` }
+    }
+  };
+}
 
 async function normalize() {
   const adapter = getAdapter(option('--host'));
@@ -73,7 +95,36 @@ async function hook() {
   const policy = { ...DEFAULT_POLICY_PROFILE, mode: process.env.CHAMBER_MODE ?? DEFAULT_POLICY_PROFILE.mode };
   const decision = evaluatePolicy(event, history, policy, adapter.capabilitiesFor(event), { adapterCapabilities: adapter.adapterCapabilitiesFor(event) });
   await store.append({ kind: 'canonical_event', event, policy_decision: decision, raw_vendor_event: raw }, { recordRawVendor: process.env.CHAMBER_RECORD_RAW_VENDOR === '1' });
-  output(adapter.toHostResponse(decision, event));
+  output({ ...adapter.toHostResponse(decision, event), ...codexVerificationResponse(raw) });
+}
+
+async function verify() {
+  const sessionId = option('--session-id'); const encoded = option('--encoded-command');
+  if (!sessionId || !encoded) throw new Error('verify requires --session-id and --encoded-command');
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded) || encoded.length % 4 === 1) throw new Error('verify requires valid base64 command input');
+  const command = Buffer.from(encoded, 'base64').toString('utf8');
+  if (checkClassification(command) !== 'recognized-check') throw new Error('verify accepts recognized check commands only');
+  const store = new TraceStore(stateDir()); const history = await store.query({ sessionId }); const exemplar = history.at(-1)?.event;
+  if (!exemplar) throw new Error('verify requires an existing session trace');
+  const result = await new Promise((resolve, reject) => {
+    const child = spawn('/bin/sh', ['-lc', command], { stdio: 'inherit' });
+    child.on('error', reject); child.on('close', (code, signal) => resolve({ code, signal }));
+  });
+  const execution = result.code === 0 ? 'passed' : 'failed';
+  const event = createEvent({
+    session_id: sessionId, lifecycle: 'tool.after', host: exemplar.host, worker_profile: exemplar.worker_profile,
+    payload: {
+      tool_name: 'Bash',
+      verification: {
+        classification: 'recognized-check', execution, source: 'command-wrapper',
+        provenance: 'chamber.verify.exit-status-v1', limitation: result.signal ? 'terminated-by-signal' : undefined
+      },
+      task_classification: persistedTaskClass(history)
+    },
+    vendor: { hook_event_name: 'ChamberVerify' }
+  });
+  await store.append({ kind: 'verification', event, policy_decision: { action: 'observe' } });
+  process.exitCode = result.code ?? 1;
 }
 
 async function outcome() {
@@ -157,6 +208,7 @@ async function main() {
   if (command === 'summary' || command === 'dogfood') return output(traceSummary(await new TraceStore(stateDir()).query({ limit: Infinity })));
   if (command === 'migrate') return migrate();
   if (command === 'outcome') return outcome();
+  if (command === 'verify') return verify();
   if (command === 'normalize') return normalize();
   if (command === 'hook') return hook();
   if (command === 'install') return install(false);

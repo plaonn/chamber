@@ -59,6 +59,28 @@ test('Codex output is event-aware: audit-only uses no-op, enforcement blocks', a
   assert.deepEqual(adapter.toHostResponse({ action: 'deny', decisions: [{ verdict: 'deny', reason: 'policy' }] }, stop), { decision: 'block', reason: 'policy' });
 });
 
+test('opt-in Codex verification wrapper records a check exit status without persisting its command', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-verify-')); const commandDir = await mkdtemp(join(tmpdir(), 'chamber-verify-command-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  await writeFile(join(commandDir, 'package.json'), JSON.stringify({ scripts: { test: 'exit 0' } }));
+  const raw = { hook_event_name: 'PreToolUse', session_id: 'captured-check', tool_name: 'Bash', tool_input: { command: `cd ${commandDir} && npm test` } };
+  const hook = JSON.parse((await runWithInput(process.execPath, [cli, 'hook', '--host', 'codex', '--state-dir', dir], JSON.stringify(raw), { env: { ...process.env, CHAMBER_STATE_DIR: dir, CHAMBER_CAPTURE_VERIFICATION: '1' } })).stdout);
+  const wrapped = hook.hookSpecificOutput.updatedInput.command;
+  assert.equal(hook.hookSpecificOutput.permissionDecision, 'allow'); assert.ok(!wrapped.includes('npm test'));
+  await exec('/bin/sh', ['-lc', wrapped], { env: { ...process.env, CHAMBER_STATE_DIR: dir } });
+  await runWithInput(process.execPath, [cli, 'hook', '--host', 'codex', '--state-dir', dir], JSON.stringify({ ...raw, hook_event_name: 'PostToolUse' }), { env: { ...process.env, CHAMBER_STATE_DIR: dir } });
+  const records = await new TraceStore(dir).query({ sessionId: raw.session_id, limit: Infinity }); const events = records.map((record) => record.event);
+  const captured = events.find((event) => event.vendor.hook_event_name === 'ChamberVerify');
+  assert.equal(captured.payload.verification.execution, 'passed'); assert.equal(captured.payload.verification.provenance, 'chamber.verify.exit-status-v1');
+  assert.equal(JSON.stringify(records).includes(commandDir), false); assert.equal(traceSummary(records).verification_session_counts.passed, 1);
+  await writeFile(join(commandDir, 'package.json'), JSON.stringify({ scripts: { test: 'exit 3' } }));
+  const failedRaw = { ...raw, session_id: 'captured-failure' };
+  const failedHook = JSON.parse((await runWithInput(process.execPath, [cli, 'hook', '--host', 'codex', '--state-dir', dir], JSON.stringify(failedRaw), { env: { ...process.env, CHAMBER_STATE_DIR: dir, CHAMBER_CAPTURE_VERIFICATION: '1' } })).stdout);
+  await assert.rejects(exec('/bin/sh', ['-lc', failedHook.hookSpecificOutput.updatedInput.command], { env: { ...process.env, CHAMBER_STATE_DIR: dir } }));
+  const failedRecords = await new TraceStore(dir).query({ sessionId: failedRaw.session_id, limit: Infinity });
+  assert.equal(failedRecords.find((record) => record.event.vendor.hook_event_name === 'ChamberVerify').event.payload.verification.execution, 'failed');
+  await rm(dir, { recursive: true }); await rm(commandDir, { recursive: true });
+});
+
 test('Gemini maps BeforeAgent to prompt.submit and AfterAgent to completion interception', async () => {
   const before = await normalize('gemini', 'gemini-before-agent.json');
   const after = await normalize('gemini', 'gemini-after-agent.json');

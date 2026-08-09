@@ -86,6 +86,12 @@ Fixtures are sanitized and do not invoke external agent runtimes. See `test/fixt
 
 `outcome --latest-unlabeled` labels the uniquely most recent unlabeled session, using persisted event timestamps only. A tied, missing, or unparseable timestamp returns a bounded `selection_required` queue without writing. Repeating the same label is idempotent, while a conflicting label is rejected. `dogfood` is a compact report of session-level acceptance, execution and verification coverage plus minimized finding, intervention, budget, capability-gap, and unlabeled-session counts. Its verification state is freshness-aware: `passed`, `stale`, `failed`, or `unknown`. It never treats verification or completion as acceptance.
 
+## Codex verification capture (opt-in)
+
+Codex `PostToolUse` does not provide a reliable shell exit status, so Chamber records its recognized checks as `unknown` by default. Set `CHAMBER_CAPTURE_VERIFICATION=1` for one Codex invocation to have `PreToolUse` replace a recognized Bash check with a Chamber wrapper. The wrapper runs the unchanged command, records only its exit status as `passed` or `failed` against the existing Codex session, and preserves the command exit code. It does not persist the command or its output.
+
+This is opt-in and leaves global Codex configuration unchanged. Enable it only after the isolated native smoke has validated the installed hook contract.
+
 ## Contributing
 
 Contributions are welcome. Chamber currently uses lightweight maintainer-led governance and does not require a CLA or DCO. See [CONTRIBUTING.md](CONTRIBUTING.md).

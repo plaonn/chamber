@@ -24,7 +24,7 @@ export function reduceTrajectory(events = []) {
       state.meaningful_mutation_since_verification = true;
       state.last_meaningful_mutation_event_id = event.event_id;
     }
-    if (recognizedVerification(event)) state.last_verification_execution = event.payload.verification.execution;
+    if (recognizedVerification(event) && event.payload.verification.execution !== 'unknown') state.last_verification_execution = event.payload.verification.execution;
     if (isSuccessfulVerification(event)) {
       state.last_successful_verification_event_id = event.event_id;
       state.meaningful_mutation_since_verification = false;
