@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { TRACE_PERSISTENCE_REVISION, TRACE_SCHEMA_VERSION } from './constants.js';
 import { redact } from './redaction.js';
 import { normalizeCorrelation, normalizeOutcomeSource } from './correlation.js';
+import { normalizeExecution } from './execution.js';
 
 function safeCorrelation(value) {
   if (!value) return undefined;
@@ -14,10 +15,16 @@ function safeOutcomeSource(value) {
   try { return normalizeOutcomeSource(value); } catch { return undefined; }
 }
 
+function safeExecution(value) {
+  if (!value) return undefined;
+  try { return normalizeExecution(value, { defaultProvenance: 'derived.v1' }); } catch { return undefined; }
+}
+
 function persistedEvent(event) {
   const verification = event.payload?.verification;
   const correlation = safeCorrelation(event.payload?.correlation);
   const outcomeSource = safeOutcomeSource(event.payload?.outcome_source);
+  const execution = safeExecution(event.payload?.execution);
   return {
     schema_version: event.schema_version,
     event_id: event.event_id,
@@ -44,7 +51,8 @@ function persistedEvent(event) {
       status: event.payload?.status,
       outcome_provenance: event.payload?.outcome_provenance,
       correlation,
-      outcome_source: outcomeSource
+      outcome_source: outcomeSource,
+      execution
     },
     vendor: { hook_event_name: event.vendor?.hook_event_name }
   };

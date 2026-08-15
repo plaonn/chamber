@@ -15,6 +15,7 @@ import { nativeControlsFromAdapter } from '../src/effective-worker.js';
 import { createEvent } from '../src/schema.js';
 import { classifyMutation } from '../src/mutation.js';
 import { correlationFromEnvironment, normalizeCorrelation } from '../src/correlation.js';
+import { executionFromEnvironment, normalizeExecution } from '../src/execution.js';
 
 const exec = promisify(execFile);
 const runWithInput = (file, args, input, options = {}) => new Promise((resolve, reject) => {
@@ -257,6 +258,15 @@ test('correlation refs are bounded, provider-neutral, and reject private paths o
   assert.throws(() => normalizeCorrelation({ source_kind: 'todoist', source_id: 'sk-test-secret' }), /not safe to persist/);
 });
 
+test('execution identities are bounded and captured only from a valid controller context', () => {
+  assert.deepEqual(normalizeExecution({ execution_id: 'orca-run-123', provenance: 'fixture.v1' }), {
+    schema_version: 'chamber.execution.v1', execution_id: 'orca-run-123', provenance: 'fixture.v1'
+  });
+  assert.equal(executionFromEnvironment({ CHAMBER_EXECUTION_ID: 'cyclone-run-123' }).execution_id, 'cyclone-run-123');
+  assert.equal(executionFromEnvironment({ CHAMBER_EXECUTION_ID: '/Users/operator/private-run' }), null);
+  assert.throws(() => normalizeExecution({ execution_id: 'sk-test-secret' }), /not safe to persist/);
+});
+
 test('correlate appends a session link and user approval remains explicit and idempotent', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'chamber-session-link-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
   await runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify({ hook_event_name: 'BeforeAgent', session_id: 'linked-session', prompt: 'Implement feature' }), { env: { ...process.env, CHAMBER_STATE_DIR: dir } });
@@ -297,6 +307,50 @@ test('hook correlation is captured once and authoritative outcome provenance is 
   await rm(dir, { recursive: true });
 });
 
+test('controller settlement closes correlation and outcome without a session lookup for Orca and Cyclone-shaped runs', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-auto-evidence-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  for (const [executionId, sourceKind] of [['orca-run-1', 'orca-run'], ['cyclone-run-1', 'cyclone-run']]) {
+    const env = {
+      ...process.env,
+      CHAMBER_STATE_DIR: dir,
+      CHAMBER_CORRELATION_KIND: 'todoist',
+      CHAMBER_CORRELATION_ID: 'task-123',
+      CHAMBER_CORRELATION_REVISION: 'task-rev-7',
+      CHAMBER_EXECUTION_ID: executionId
+    };
+    await runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify({ hook_event_name: 'BeforeAgent', session_id: executionId, prompt: 'Implement feature' }), { env });
+    await runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify({ hook_event_name: 'AfterAgent', session_id: executionId, prompt_response: 'done' }), { env });
+    assert.equal((await new TraceStore(dir).query({ sessionId: executionId, limit: Infinity })).filter((record) => record.event.lifecycle === 'outcome').length, 0);
+    const settled = JSON.parse((await exec(process.execPath, [cli, 'settle', '--state-dir', dir, '--execution-id', executionId, '--status', 'accepted', '--producer', 'execution-controller', '--source-kind', sourceKind, '--source-id', executionId, '--source-revision', 'dispatch-1'])).stdout);
+    assert.equal(settled.recorded, true); assert.equal(settled.automatic, true); assert.equal(settled.execution_id, executionId);
+    const repeated = JSON.parse((await exec(process.execPath, [cli, 'settle', '--state-dir', dir, '--execution-id', executionId, '--status', 'accepted', '--producer', 'execution-controller', '--source-kind', sourceKind, '--source-id', executionId, '--source-revision', 'dispatch-1'])).stdout);
+    assert.equal(repeated.idempotent, true);
+  }
+  const evidence = JSON.parse((await exec(process.execPath, [cli, 'evidence', '--state-dir', dir, '--session-id', 'orca-run-1'])).stdout);
+  assert.equal(evidence.outcome, 'accepted'); assert.equal(evidence.acceptance.source.producer, 'execution-controller');
+  assert.equal(evidence.execution.execution_id, 'orca-run-1');
+  assert.deepEqual(evidence.correlation_sources.map((source) => source.source_kind), ['todoist', 'orca-run']);
+  const summary = JSON.parse((await exec(process.execPath, [cli, 'summary', '--state-dir', dir])).stdout);
+  assert.equal(summary.execution_bound_session_count, 2); assert.equal(summary.execution_unbound_session_count, 0);
+  assert.deepEqual(summary.outcome_producer_counts, { 'execution-controller': 2 });
+  const records = await new TraceStore(dir).query({ sessionId: 'orca-run-1', limit: Infinity });
+  assert.equal(records.filter((record) => record.event.lifecycle === 'outcome').length, 1);
+  assert.doesNotMatch(await readFile(join(dir, 'trace.jsonl'), 'utf8'), /Implement feature|done/);
+  await rm(dir, { recursive: true });
+});
+
+test('settlement fails closed for an unknown or non-unique execution identity', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-auto-selection-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  const env = { ...process.env, CHAMBER_STATE_DIR: dir, CHAMBER_EXECUTION_ID: 'duplicate-run' };
+  for (const sessionId of ['one', 'two']) await runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify({ hook_event_name: 'BeforeAgent', session_id: sessionId, prompt: 'Implement feature' }), { env });
+  let result = JSON.parse((await exec(process.execPath, [cli, 'settle', '--state-dir', dir, '--execution-id', 'missing-run', '--status', 'accepted', '--producer', 'execution-controller', '--source-kind', 'controller-run', '--source-id', 'missing-run'])).stdout);
+  assert.deepEqual(result, { status: 'no_execution_sessions', execution_id: 'missing-run', session_ids: [] });
+  result = JSON.parse((await exec(process.execPath, [cli, 'settle', '--state-dir', dir, '--execution-id', 'duplicate-run', '--status', 'accepted', '--producer', 'execution-controller', '--source-kind', 'controller-run', '--source-id', 'duplicate-run'])).stdout);
+  assert.deepEqual(result, { status: 'selection_required', execution_id: 'duplicate-run', session_ids: ['one', 'two'] });
+  assert.equal((await new TraceStore(dir).query({ limit: Infinity })).filter((record) => record.event.lifecycle === 'outcome').length, 0);
+  await rm(dir, { recursive: true });
+});
+
 test('correlation outcome selection fails closed when one source maps to multiple sessions', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'chamber-correlation-selection-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
   const env = { ...process.env, CHAMBER_STATE_DIR: dir, CHAMBER_CORRELATION_KIND: 'work-item', CHAMBER_CORRELATION_ID: 'shared-1' };
@@ -333,6 +387,7 @@ test('trace summary keeps aggregate counts descriptive and does not estimate suc
   const summary = traceSummary(await store.query({ limit: Infinity }));
   assert.equal(summary.distinct_session_count, 1); assert.equal(summary.session_task_sample_count, 1); assert.equal(summary.verification_event_counts.passed, 1); assert.equal(summary.worker_session_counts.gemini, 1); assert.equal(summary.success_probability, null);
   assert.equal(summary.acceptance_unknown_session_count, 1); assert.deepEqual(summary.verification_session_counts, { passed: 1 });
+  assert.equal(summary.execution_bound_session_count, 0); assert.equal(summary.execution_unbound_session_count, 1);
   await rm(dir, { recursive: true });
 });
 

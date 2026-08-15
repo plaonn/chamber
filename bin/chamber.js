@@ -13,6 +13,7 @@ import { inspectCodexHookRegistration } from '../src/operator.js';
 import { resolveStateDir } from '../src/state.js';
 import { unknownNativeControls } from '../src/effective-worker.js';
 import { checkClassification } from '../src/verification.js';
+import { executionFromEnvironment, executionsFromEvents, executionMatches } from '../src/execution.js';
 import {
   MAX_SESSION_CORRELATIONS,
   correlationFromEnvironment,
@@ -32,7 +33,7 @@ const MAX_SELECTION_CANDIDATES = 10;
 const option = (name, fallback) => { const index = args.indexOf(name); return index < 0 ? fallback : args[index + 1]; };
 const has = (name) => args.includes(name);
 const output = (value) => process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
-const usage = () => console.log(`Usage: chamber <hosts|doctor|trace|evidence|summary|dogfood|correlate|outcome|migrate|normalize|install|uninstall|demo> [options]
+const usage = () => console.log(`Usage: chamber <hosts|doctor|trace|evidence|summary|dogfood|correlate|outcome|settle|migrate|normalize|install|uninstall|demo> [options]
 
 Commands:
   hosts                         list adapter capability matrices
@@ -47,8 +48,12 @@ Commands:
                                 non-destructively import minimized trace records
   outcome (--session-id ID|--latest-unlabeled|--correlation-id ID) --status accepted|rejected|unknown
                                 record explicit, transcript-free outcome feedback
-           [--producer operator|user-approval|independent-verifier|benchmark|oracle]
+           [--producer operator|user-approval|execution-controller|independent-verifier|benchmark|oracle]
            [--source-kind KIND --source-id ID [--source-revision REV]]
+  settle --execution-id ID --status accepted|rejected|unknown
+                                settle one controller outcome without a session lookup
+         [--producer execution-controller|independent-verifier|benchmark|oracle]
+         --source-kind KIND --source-id ID [--source-revision REV]
   normalize --host H --input F  normalize a host fixture/event and record audit
   hook --host H                  stdin/stdout native-hook entrypoint
   verify --session-id ID --encoded-command BASE64
@@ -76,14 +81,29 @@ function eventCorrelations(history) {
   return correlationsFromEvents(history.map((record) => record.event).filter(Boolean));
 }
 
+function eventExecutions(history) {
+  return executionsFromEvents(history.map((record) => record.event).filter(Boolean));
+}
+
 function attachCorrelation(event, correlation) {
   return createEvent({ ...event, payload: { ...event.payload, correlation } });
+}
+
+function attachExecution(event, execution) {
+  return createEvent({ ...event, payload: { ...event.payload, execution } });
 }
 
 function correlatedSessionIds(records, { sourceKind, sourceId }) {
   return [...new Set(records
     .filter((record) => correlationMatches(record.event?.payload?.correlation, { sourceKind, sourceId })
       || correlationMatches(record.event?.payload?.outcome_source?.correlation, { sourceKind, sourceId }))
+    .map((record) => record.event?.session_id)
+    .filter(Boolean))].sort();
+}
+
+function executionSessionIds(records, executionId) {
+  return [...new Set(records
+    .filter((record) => executionMatches(record.event?.payload?.execution, executionId))
     .map((record) => record.event?.session_id)
     .filter(Boolean))].sort();
 }
@@ -129,6 +149,9 @@ async function hook() {
   const correlation = correlationFromEnvironment();
   if (correlation && !existingCorrelations.some((existing) => correlationKey(existing) === correlationKey(correlation))
     && existingCorrelations.length < MAX_SESSION_CORRELATIONS) event = attachCorrelation(event, correlation);
+  const existingExecutions = eventExecutions(history);
+  const execution = executionFromEnvironment();
+  if (execution && existingExecutions.length === 0) event = attachExecution(event, execution);
   const policy = { ...DEFAULT_POLICY_PROFILE, mode: process.env.CHAMBER_MODE ?? DEFAULT_POLICY_PROFILE.mode };
   const decision = evaluatePolicy(event, history, policy, adapter.capabilitiesFor(event), { adapterCapabilities: adapter.adapterCapabilitiesFor(event) });
   await store.append({ kind: 'canonical_event', event, policy_decision: decision, raw_vendor_event: raw }, { recordRawVendor: process.env.CHAMBER_RECORD_RAW_VENDOR === '1' });
@@ -184,6 +207,36 @@ async function correlate() {
   output({ recorded: true, session_id: sessionId, correlation });
 }
 
+async function recordOutcomeForSession(store, { sessionId, status, producer, source }) {
+  const history = await store.query({ sessionId }); const exemplar = history.at(-1)?.event;
+  if (!exemplar) throw new Error('outcome requires an existing session trace');
+  const prior = history.filter((record) => record.event?.lifecycle === 'outcome').map((record) => record.event);
+  const provenance = outcomeProvenance(producer);
+  if (prior.length) {
+    const previous = prior.at(-1);
+    if (previous.payload?.status === status && previous.payload?.outcome_provenance === provenance
+      && sameOutcomeSource(previous.payload?.outcome_source, source)) {
+      const response = { recorded: false, idempotent: true, session_id: sessionId, status, provenance };
+      if (source) response.source = source.correlation;
+      return response;
+    }
+    throw new Error('conflicting_acceptance_evidence: use an explicit future replacement contract');
+  }
+  const payload = {
+    status, outcome_provenance: provenance, task_classification: persistedTaskClass(history)
+  };
+  if (source) payload.outcome_source = source;
+  const event = createEvent({
+    session_id: sessionId, lifecycle: 'outcome', host: exemplar.host, worker_profile: exemplar.worker_profile,
+    payload,
+    vendor: { hook_event_name: 'ChamberOutcome' }
+  });
+  await store.append({ kind: 'outcome', event, policy_decision: { action: 'observe' } });
+  const response = { recorded: true, session_id: sessionId, status, provenance };
+  if (source) response.source = source.correlation;
+  return response;
+}
+
 async function outcome() {
   let sessionId = option('--session-id'); const status = option('--status');
   const correlationId = option('--correlation-id'); const correlationKind = option('--correlation-kind');
@@ -197,7 +250,6 @@ async function outcome() {
     sourceKind: option('--source-kind'), sourceId: option('--source-id'), sourceRevision: option('--source-revision')
   });
   if (!['operator', 'user-approval'].includes(producer) && !source) throw new Error('external outcome producer requires --source-kind and --source-id');
-  const provenance = outcomeProvenance(producer);
   const store = new TraceStore(stateDir());
   const all = await store.query({ limit: Infinity });
   if (has('--latest-unlabeled')) {
@@ -223,32 +275,26 @@ async function outcome() {
     sessionId = matches[0];
   }
   if (!sessionId) throw new Error('outcome requires --session-id, --latest-unlabeled, or --correlation-id');
-  const history = await store.query({ sessionId }); const exemplar = history.at(-1)?.event;
-  if (!exemplar) throw new Error('outcome requires an existing session trace');
-  const prior = history.filter((record) => record.event?.lifecycle === 'outcome').map((record) => record.event);
-  if (prior.length) {
-    const previous = prior.at(-1);
-    if (previous.payload?.status === status && previous.payload?.outcome_provenance === provenance
-      && sameOutcomeSource(previous.payload?.outcome_source, source)) {
-      const response = { recorded: false, idempotent: true, session_id: sessionId, status, provenance };
-      if (source) response.source = source.correlation;
-      return output(response);
-    }
-    throw new Error('conflicting_acceptance_evidence: use an explicit future replacement contract');
-  }
-  const payload = {
-    status, outcome_provenance: provenance, task_classification: persistedTaskClass(history)
-  };
-  if (source) payload.outcome_source = source;
-  const event = createEvent({
-    session_id: sessionId, lifecycle: 'outcome', host: exemplar.host, worker_profile: exemplar.worker_profile,
-    payload,
-    vendor: { hook_event_name: 'ChamberOutcome' }
+  output(await recordOutcomeForSession(store, { sessionId, status, producer, source }));
+}
+
+async function settle() {
+  const executionId = option('--execution-id'); const status = option('--status');
+  if (!executionId) throw new Error('settle requires --execution-id');
+  if (!['accepted', 'rejected', 'unknown'].includes(status)) throw new Error('settle status must be accepted, rejected, or unknown');
+  const producer = normalizeProducer(option('--producer', 'execution-controller'));
+  if (['operator', 'user-approval'].includes(producer)) throw new Error('settle requires a non-interactive outcome producer');
+  const source = createOutcomeSource({
+    producer,
+    sourceKind: option('--source-kind'), sourceId: option('--source-id'), sourceRevision: option('--source-revision')
   });
-  await store.append({ kind: 'outcome', event, policy_decision: { action: 'observe' } });
-  const response = { recorded: true, session_id: sessionId, status, provenance };
-  if (source) response.source = source.correlation;
-  output(response);
+  if (!source) throw new Error('settle requires --source-kind and --source-id for an authoritative source');
+  const store = new TraceStore(stateDir()); const all = await store.query({ limit: Infinity });
+  const matches = executionSessionIds(all, executionId);
+  if (!matches.length) return output({ status: 'no_execution_sessions', execution_id: executionId, session_ids: [] });
+  if (matches.length > 1) return output({ status: 'selection_required', execution_id: executionId, session_ids: matches.slice(0, MAX_SELECTION_CANDIDATES) });
+  const response = await recordOutcomeForSession(store, { sessionId: matches[0], status, producer, source });
+  output({ ...response, execution_id: executionId, automatic: true });
 }
 
 async function install(remove = false) {
@@ -294,6 +340,7 @@ async function main() {
   if (command === 'correlate') return correlate();
   if (command === 'migrate') return migrate();
   if (command === 'outcome') return outcome();
+  if (command === 'settle') return settle();
   if (command === 'verify') return verify();
   if (command === 'normalize') return normalize();
   if (command === 'hook') return hook();

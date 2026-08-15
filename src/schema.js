@@ -3,6 +3,7 @@ import { EVENT_SCHEMA_VERSION, LIFECYCLES } from './constants.js';
 import { redact } from './redaction.js';
 import { normalizedNativeControls } from './effective-worker.js';
 import { normalizeCorrelation, normalizeOutcomeSource } from './correlation.js';
+import { normalizeExecution } from './execution.js';
 
 export class SchemaError extends Error {}
 
@@ -40,6 +41,9 @@ export function validateEvent(event) {
   }
   if (event.payload?.outcome_source) {
     try { normalizeOutcomeSource(event.payload.outcome_source); } catch (error) { throw new SchemaError(error.message); }
+  }
+  if (event.payload?.execution) {
+    try { normalizeExecution(event.payload.execution); } catch (error) { throw new SchemaError(error.message); }
   }
   return event;
 }

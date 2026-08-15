@@ -4,6 +4,7 @@ import { factorizedEvaluation } from './effective-worker.js';
 import { verificationState } from './trajectory.js';
 import { isSuccessfulVerification } from './verification.js';
 import { correlationsFromEvents } from './correlation.js';
+import { executionsFromEvents } from './execution.js';
 
 export function qualityEvidence(events, workerProfile) {
   const outcomes = events.filter((event) => event.lifecycle === 'outcome');
@@ -12,6 +13,7 @@ export function qualityEvidence(events, workerProfile) {
   const verified = events.filter(isSuccessfulVerification).length;
   const taskClassification = persistedTaskClass(events);
   const correlations = correlationsFromEvents(events);
+  const executions = executionsFromEvents(events);
   return {
     schema_version: QUALITY_EVIDENCE_SCHEMA_VERSION,
     generated_at: new Date().toISOString(),
@@ -21,6 +23,7 @@ export function qualityEvidence(events, workerProfile) {
     outcome: acceptance,
     acceptance: { status: acceptance, provenance: latestOutcome?.payload.outcome_provenance ?? null, source: latestOutcome?.payload.outcome_source ?? null },
     correlation_sources: correlations,
+    execution: executions[0] ?? null,
     verification_evidence_count: verified,
     evidence_count: events.length,
     freshness: events.length ? 'current-session' : 'none',
@@ -46,8 +49,10 @@ export function traceSummary(records) {
     const outcomes = sessionEvents.filter((event) => event.lifecycle === 'outcome');
     const latestOutcome = outcomes.at(-1);
     const sessionRecords = records.filter((record) => record.event?.session_id === sessionId);
+    const executions = executionsFromEvents(sessionEvents);
     return {
       session_id: sessionId,
+      execution_identity: executions[0] ?? null,
       worker_profile: sessionEvents.at(-1)?.worker_profile,
       task_class: persistedTaskClass(sessionEvents).value,
       acceptance: latestOutcome?.payload?.status ?? 'unknown',
@@ -85,6 +90,8 @@ export function traceSummary(records) {
     capability_gap_counts: count(flatten('degraded')),
     correlated_session_count: sessions.filter((session) => session.correlation_sources.length > 0).length,
     uncorrelated_session_count: sessions.filter((session) => session.correlation_sources.length === 0).length,
+    execution_bound_session_count: sessions.filter((session) => session.execution_identity !== null).length,
+    execution_unbound_session_count: sessions.filter((session) => session.execution_identity === null).length,
     correlation_source_counts: count(sessions.flatMap((session) => session.correlation_sources.map((source) => source.source_kind))),
     outcome_producer_counts: count(outcomeSources),
     recent_unlabeled_session_ids: sessions.filter((session) => session.acceptance === 'unknown').slice(-10).map((session) => session.session_id),

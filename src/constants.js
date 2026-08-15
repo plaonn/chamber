@@ -4,6 +4,7 @@ export const TRACE_SCHEMA_VERSION = 'chamber.trace.v2';
 export const TRACE_PERSISTENCE_REVISION = 'minimized-v2';
 export const CORRELATION_SCHEMA_VERSION = 'chamber.correlation.v1';
 export const OUTCOME_SOURCE_SCHEMA_VERSION = 'chamber.outcome-source.v1';
+export const EXECUTION_SCHEMA_VERSION = 'chamber.execution.v1';
 
 export const LIFECYCLES = new Set([
   'session.start', 'session.end', 'prompt.submit', 'model.before', 'model.after',

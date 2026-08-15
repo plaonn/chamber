@@ -11,7 +11,7 @@ Required fields: `event_id`, `occurred_at`, `session_id`, `lifecycle`, `host`, a
   "lifecycle": "tool.after",
   "host": {"runtime": "codex", "version": "0.147.0", "adapter_revision": "codex-hook-v2"},
   "worker_profile": {"host": "codex", "agent_runtime": "codex-cli", "model": "unknown", "host_version": "0.147.0", "adapter_revision": "codex-hook-v2", "policy_profile": "audit-default", "policy_revision": "1", "config_revision": "unknown", "native_controls": {"schema_version": "chamber.native-controls.v1", "status": "unknown", "reason": "adapter-control-not-observed", "values": {}}},
-  "payload": {"verification": {"classification": "recognized-check", "execution": "unknown", "source": "native-hook", "provenance": "codex.post-tool-use.output-only", "limitation": "exact-exit-status-unsupported"}},
+  "payload": {"verification": {"classification": "recognized-check", "execution": "unknown", "source": "native-hook", "provenance": "codex.post-tool-use.output-only", "limitation": "exact-exit-status-unsupported"}, "execution": {"schema_version": "chamber.execution.v1", "execution_id": "dispatch-123", "provenance": "hook.execution-context-v1"}},
   "vendor": {"hook_event_name": "PostToolUse"}
 }
 ```
@@ -40,11 +40,31 @@ accepted. A session can retain at most eight distinct source identities. The hoo
 `CHAMBER_CORRELATION_REVISION`; incomplete or invalid optional metadata is omitted.
 
 An explicit outcome may include a `chamber.outcome-source.v1` object with a producer
-declaration (`operator`, `user-approval`, `independent-verifier`, `benchmark`, or `oracle`),
+declaration (`operator`, `user-approval`, `execution-controller`, `independent-verifier`, `benchmark`, or `oracle`),
 versioned provenance, and optionally the same bounded correlation shape. External producer
 declarations require that source reference; user approval may use the selected session
 directly. The declaration identifies how the outcome was supplied; it is not authentication and does not turn correlation,
 verification, completion, commit/push, or task-manager state into acceptance.
+
+## `chamber.execution.v1`
+
+An execution identity is a bounded controller-issued identifier for one dispatch attempt.
+It is carried in the canonical event payload and persisted in the minimized trace:
+
+```json
+{
+  "execution": {
+    "schema_version": "chamber.execution.v1",
+    "execution_id": "dispatch-123",
+    "provenance": "hook.execution-context-v1"
+  }
+}
+```
+
+The native hook reads `CHAMBER_EXECUTION_ID`. The controller must generate a new value
+for every retry, even when the Todoist task source is unchanged. `chamber settle` uses this
+identity to select exactly one session and never falls back to recency or an arbitrary
+session. Missing, duplicated, or invalid identities fail closed.
 
 ## `chamber.finding.v1`
 
@@ -162,11 +182,11 @@ The serialized capability evidence records the bounded native, adapter, runtime-
 
 ## Current `chamber.quality-evidence.v1`
 
-Contains `worker_profile`, `task_class`, execution `outcome`, deterministic verification count, total evidence count, freshness, probability (nullable), uncertainty, and schema/policy provenance. Probability must remain null rather than fabricated while the profile lacks enough evidence.
+Contains `worker_profile`, `task_class`, execution identity, execution `outcome`, deterministic verification count, total evidence count, freshness, probability (nullable), uncertainty, and schema/policy provenance. Probability must remain null rather than fabricated while the profile lacks enough evidence.
 
 The accompanying `evaluation` object is `chamber.factorized-evaluation.v1`, not an estimator result. It records that exact worker provenance is available separately, the statistical unit is `session-task-outcome`, selected model/task/policy/native-control factors may be pooled, and an interaction or exact-combination cohort must be evidence-justified. A native control is a namespaced provider value, never a cross-provider semantic level.
 
-The current implementation uses a single bounded outcome status (`accepted`, `rejected`, or `unknown`). Quality evidence exposes bounded `correlation_sources` and an optional acceptance `source` while `chamber.trace.v2` persists bounded attribution for each finding and intervention. This quality-evidence export does not yet expose individual interventions as estimator cohorts. That promotion remains gated on sufficient explicit acceptance and comparable verification evidence.
+The current implementation uses a single bounded outcome status (`accepted`, `rejected`, or `unknown`). Quality evidence exposes an execution identity, bounded `correlation_sources`, and an optional acceptance `source` while `chamber.trace.v2` persists bounded attribution for each finding and intervention. This quality-evidence export does not yet expose individual interventions as estimator cohorts. That promotion remains gated on sufficient explicit acceptance and comparable verification evidence.
 
 ## Next quality-evidence revision requirements
 
@@ -184,6 +204,6 @@ It should continue to avoid transcripts and free-form reviewer feedback by defau
 
 ## `chamber.trace.v2`
 
-The persisted trace is a safe projection, stamped `persistence_revision: "minimized-v2"` and `persistence.mode: "allowlist-minimized"`. It also records whether raw vendor storage was opted in and that redaction remains a defense-in-depth layer. It stores no prompt, final assistant output, command text, tool output, arbitrary tool input, or raw vendor payload by default. A tool record can retain only `{classification, execution, source, provenance, limitation}` for verification. It may retain only bounded `task_classification` `{value, revision, provenance}`, outcome `{status, outcome_provenance}`, correlation, and outcome-source fields. This boundary is intentional: raw data is an in-memory adapter/policy input, not ordinary local telemetry.
+The persisted trace is a safe projection, stamped `persistence_revision: "minimized-v2"` and `persistence.mode: "allowlist-minimized"`. It also records whether raw vendor storage was opted in and that redaction remains a defense-in-depth layer. It stores no prompt, final assistant output, command text, tool output, arbitrary tool input, or raw vendor payload by default. A tool record can retain only `{classification, execution, source, provenance, limitation}` for verification. It may retain only bounded `task_classification` `{value, revision, provenance}`, execution identity, outcome `{status, outcome_provenance}`, correlation, and outcome-source fields. This boundary is intentional: raw data is an in-memory adapter/policy input, not ordinary local telemetry.
 
 Finding/intervention records follow the same data-minimization rule: stable codes, revisions, bounded parameters, canonical event references, capability provenance, and result state are appropriate; prompts, generated text, raw tool output, and arbitrary vendor payload are not.

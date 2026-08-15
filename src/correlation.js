@@ -103,7 +103,9 @@ const PRODUCER_ALIASES = new Map([
   ['benchmark', 'benchmark'],
   ['external-benchmark', 'benchmark'],
   ['oracle', 'oracle'],
-  ['external-oracle', 'oracle']
+  ['external-oracle', 'oracle'],
+  ['controller', 'execution-controller'],
+  ['execution-controller', 'execution-controller']
 ]);
 
 export const OUTCOME_PRODUCERS = Object.freeze([...new Set(PRODUCER_ALIASES.values())]);

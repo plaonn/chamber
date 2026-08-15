@@ -117,13 +117,36 @@ the first event for a session. A session accepts at most eight distinct source i
 Private paths, control characters, and secret-shaped values are rejected or omitted.
 
 Outcome attribution is explicit and append-only. `operator`, `user-approval`,
-`independent-verifier`, `benchmark`, and `oracle` are supported producer declarations;
+`execution-controller`, `independent-verifier`, `benchmark`, and `oracle` are supported producer declarations;
 external producers require a bounded source reference, while user approval may be tied
 directly to the selected session. Repeating the exact status,
 producer, and source is idempotent. A different status or provenance is a conflict and does
 not rewrite prior evidence. These fields describe the declared producer; Chamber does not
 authenticate an external system or infer acceptance from correlation, verification,
 completion, commit/push, or task state.
+
+## Automatic evidence acquisition
+
+The normal dispatch path uses a provider-neutral execution context rather than a
+Chamber-specific Orca or Cyclone integration. A controller assigns a unique
+`CHAMBER_EXECUTION_ID` to every dispatch attempt and passes it, together with the
+bounded Todoist or other work-item reference, into the native host environment. The
+Chamber hook persists both values on the observed session. Retries therefore remain
+distinct even when they point to the same task revision.
+
+After the controller receives an explicit acceptance authority result, it calls
+`chamber settle --execution-id ... --status ... --producer execution-controller`
+with the bounded authority source. Settlement selects exactly one session by execution
+identity, appends the explicit outcome, and is idempotent for a repeated identical
+callback. Missing or duplicate execution identities return without writing. This is the
+automatic replacement for a person finding a session and entering `correlate` followed by
+`outcome`.
+
+The controller must not translate worker completion, a clean test, a commit, a push, or a
+Todoist lifecycle transition into `accepted`. If no acceptance authority exists, the
+session remains acceptance-unknown while its correlation, execution identity, and other
+observable evidence are still retained. The `execution-controller` value is a bounded
+provenance declaration at this local boundary; it is not cryptographic authentication.
 
 ## Native contract mapping
 
@@ -133,11 +156,11 @@ Gemini CLI `0.37.2` maps `BeforeAgent` to `prompt.submit`, and `AfterAgent` to `
 
 ## Trace and evidence
 
-The first store is append-only JSONL for dependency-free local operation and deterministic export. Its default state root is a stable user-level platform location, never the current repository or worktree; `CHAMBER_STATE_DIR` overrides that location for both hooks and operator commands. Raw hook payload is ephemeral: adapters normalize it and policy evaluates it in memory. Persistence writes `chamber.trace.v2` with `minimized-v2` provenance and an allowlisted projection only: identifiers, lifecycle, host/worker provenance, hook name, stop-loop flag, verification classification/outcome, bounded correlation, and bounded outcome-source provenance. Prompts, final responses, command strings, tool output, arbitrary tool input, and raw vendor payload are omitted by default. Explicit raw-vendor debug recording is opt-in only and still redacted; it is not used by normal CLI flows. Migration imports only minimized event-identified records, deduplicates by event ID, and never removes source traces.
+The first store is append-only JSONL for dependency-free local operation and deterministic export. Its default state root is a stable user-level platform location, never the current repository or worktree; `CHAMBER_STATE_DIR` overrides that location for both hooks and operator commands. Raw hook payload is ephemeral: adapters normalize it and policy evaluates it in memory. Persistence writes `chamber.trace.v2` with `minimized-v2` provenance and an allowlisted projection only: identifiers, lifecycle, host/worker provenance, hook name, stop-loop flag, verification classification/outcome, bounded execution identity, bounded correlation, and bounded outcome-source provenance. Prompts, final responses, command strings, tool output, arbitrary tool input, and raw vendor payload are omitted by default. Explicit raw-vendor debug recording is opt-in only and still redacted; it is not used by normal CLI flows. Migration imports only minimized event-identified records, deduplicates by event ID, and never removes source traces.
 
 Quality evidence preserves exact observed effective-worker provenance rather than a raw model name: host, agent runtime, model, host version, adapter revision, policy profile/revision, config revision, and adapter-allowlisted native controls. Native controls are provider-namespaced (for example, `codex.reasoning_effort` and `gemini.thinking_level`), bounded scalar values, and versioned adapter mappings; they are not a Chamber claim that the two controls are semantically equivalent. An adapter records `unknown` when it cannot observe a control from exact session-local evidence. It never reads or stores whole configs, credentials, private paths, raw provider payloads, prompts, commands, or tool output to fill that gap.
 
-Exact provenance is for reproducibility and contamination prevention. Estimation instead uses the `chamber.factorized-evaluation.v1` contract: the session/task outcome is the statistical unit; model, task class, policy, selected native controls, and bounded source kind are candidate factors; partial pooling is preferred for sparse data; and interaction or exact-combination cohorts require supporting evidence. A distinct exact provenance tuple is therefore not automatically a separately estimated worker. Summary surfaces count worker, task-class, correlation, and outcome-producer samples per session, while event counts remain explicitly labelled telemetry. Deterministic verification evidence means only a recognized test/check command with host-supported successful execution semantics. Unclassified tools and recognized commands without a reliable status are not counted. Gemini shell signal termination is failed evidence, never implicit-zero success. Task class is a bounded enum derived in memory from prompt/command text; only its value, revision, and provenance are persisted. Session evidence retains the most recent non-`unknown` class so a later lifecycle event without classifiable input cannot erase it. `chamber outcome --session-id … --status accepted|rejected|unknown` is the standalone producer for explicit acceptance evidence, while `--correlation-id` selects a uniquely associated session. Neither command stores feedback/transcript body. The MVP sets `success_probability` to `null` with `uncertainty: insufficient_evidence` until sufficient accepted outcomes exist.
+Exact provenance is for reproducibility and contamination prevention. Estimation instead uses the `chamber.factorized-evaluation.v1` contract: the session/task outcome is the statistical unit; model, task class, policy, selected native controls, execution identity, and bounded source kind are candidate factors; partial pooling is preferred for sparse data; and interaction or exact-combination cohorts require supporting evidence. A distinct exact provenance tuple is therefore not automatically a separately estimated worker. Summary surfaces count worker, task-class, execution-binding, correlation, and outcome-producer samples per session, while event counts remain explicitly labelled telemetry. Deterministic verification evidence means only a recognized test/check command with host-supported successful execution semantics. Unclassified tools and recognized commands without a reliable status are not counted. Gemini shell signal termination is failed evidence, never implicit-zero success. Task class is a bounded enum derived in memory from prompt/command text; only its value, revision, and provenance are persisted. Session evidence retains the most recent non-`unknown` class so a later lifecycle event without classifiable input cannot erase it. `chamber outcome --session-id … --status accepted|rejected|unknown` is the standalone producer for explicit acceptance evidence, while `--correlation-id` selects a uniquely associated session. `chamber settle --execution-id …` is the controller path for the same outcome contract without a session lookup. Neither command stores feedback/transcript body. The MVP sets `success_probability` to `null` with `uncertainty: insufficient_evidence` until sufficient accepted outcomes exist.
 
 ## Adapter contract status
 
@@ -160,8 +183,8 @@ estimator, or broad-enforcement expansion.
 Use the local-only operator surfaces to close the evidence gap:
 
 - `chamber dogfood` reports session-level acceptance, execution, verification,
-  task-class, correlation, outcome-producer, finding, intervention, budget,
-  capability-gap, and unlabeled-session coverage.
+  task-class, execution-binding, correlation, outcome-producer, finding,
+  intervention, budget, capability-gap, and unlabeled-session coverage.
 - `chamber correlate --session-id ID --source-kind KIND --source-id ID` records a
   bounded external source association; `chamber outcome --correlation-id ID` can
   select the uniquely associated session.
@@ -169,6 +192,9 @@ Use the local-only operator surfaces to close the evidence gap:
   acceptance producer. Verification, completion text, commit/push, or task-manager
   state must not be treated as acceptance; external producer fields remain explicit
   declarations rather than authenticated claims.
+- `chamber settle --execution-id ID --status ... --producer execution-controller`
+  is the automatic controller callback. It resolves the unique dispatch attempt,
+  appends bounded outcome provenance, and fails closed on missing or duplicate identity.
 - Codex verification capture is opt-in through the documented isolated wrapper so
   a recognized check has an observed exit status instead of an inferred success.
 
