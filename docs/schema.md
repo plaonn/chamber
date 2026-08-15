@@ -18,7 +18,7 @@ Required fields: `event_id`, `occurred_at`, `session_id`, `lifecycle`, `host`, a
 
 ## `chamber.finding.v1`
 
-`chamber.finding.v1` is the planned structured output of a deterministic detector or validator. It reports an observable condition, not free-form advice and not a generated repair plan.
+`chamber.finding.v1` is the structured output of a deterministic detector or validator. It reports an observable condition, not free-form advice and not a generated repair plan.
 
 Required fields:
 
@@ -136,7 +136,7 @@ Contains `worker_profile`, `task_class`, execution `outcome`, deterministic veri
 
 The accompanying `evaluation` object is `chamber.factorized-evaluation.v1`, not an estimator result. It records that exact worker provenance is available separately, the statistical unit is `session-task-outcome`, selected model/task/policy/native-control factors may be pooled, and an interaction or exact-combination cohort must be evidence-justified. A native control is a namespaced provider value, never a cross-provider semantic level.
 
-The current implementation uses a single bounded outcome status (`accepted`, `rejected`, or `unknown`) and does not yet attribute individual interventions.
+The current implementation uses a single bounded outcome status (`accepted`, `rejected`, or `unknown`). `chamber.trace.v2` persists bounded attribution for each finding and intervention, while this quality-evidence export does not yet expose individual interventions as estimator cohorts. That promotion remains gated on sufficient explicit acceptance and comparable verification evidence.
 
 ## Next quality-evidence revision requirements
 

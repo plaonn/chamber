@@ -97,7 +97,12 @@ Statistical estimation may use ordinary methods such as success rates, Bayesian 
 
 ## Outcome and attribution
 
-A single `accepted|rejected|unknown` flag is sufficient for the current MVP but not for mature policy attribution. The next evidence contract should distinguish at least:
+The current MVP records explicit `accepted|rejected|unknown` acceptance separately from
+verification and execution observations. `chamber.trace.v2` already persists bounded
+finding/intervention provenance per event, while `chamber.quality-evidence.v1` remains a
+descriptive session-level export and does not estimate success probability or promote
+individual interventions into estimator cohorts. A mature attribution contract should
+distinguish at least:
 
 - execution: completed, aborted, or error;
 - verification: passed, failed, or unknown;
@@ -129,8 +134,29 @@ The reducer records a bounded verification-correction selection with a one-use b
 
 Adapters can normalize events and generate host responses. Actual global hook registration is intentionally not performed by tests or commands without an operator-selected config directory. `install --dry-run` previews a reversible Chamber registration manifest; non-dry-run writes a local manifest with a `.bak` backup. Official host configuration paths and exact registration formats are adapter-contract concerns and must be refreshed before global installation.
 
-## Native dogfood next step
+## Current dogfood phase
 
-After official host registration contracts are validated against the installed CLIs, configure isolated native Codex and Gemini sessions and run audit-only coding tasks. The next implementation slice should introduce structured finding/intervention contracts, freshness-aware verification state, bounded retry policy, and effective-capability evidence before broad enforcement. Inspect the resulting local trace/evidence through `chamber trace` and `chamber evidence` and compare intervention cohorts only after those contracts are stable.
+The structured finding/intervention contracts, verification-freshness state,
+bounded intervention budget, effective-worker provenance, runtime-freshness
+diagnostics, and session-level dogfood summary are implemented. The current phase is
+therefore evidence collection and calibration preparation, not speculative detector,
+estimator, or broad-enforcement expansion.
+
+Use the local-only operator surfaces to close the evidence gap:
+
+- `chamber dogfood` reports session-level acceptance, execution, verification,
+  task-class, finding, intervention, budget, capability-gap, and unlabeled-session
+  coverage.
+- `chamber outcome --session-id ID --status accepted|rejected` is the explicit
+  acceptance producer. Verification, completion text, commit/push, or task-manager
+  state must not be treated as acceptance.
+- Codex verification capture is opt-in through the documented isolated wrapper so
+  a recognized check has an observed exit status instead of an inferred success.
+
+The next implementation revisit is evidence-triggered: collect enough explicit,
+comparable acceptance labels and verification observations to distinguish raw
+worker baseline from Chamber-managed sessions. Until that gate is met, keep
+`success_probability` unestimated, avoid broad enforcement/canary, and do not add
+large task ontologies or intervention cohorts merely to fill sparse evidence.
 
 Orca can be used to launch or interact with those sessions, but it is only an optional interaction surface: Chamber requires no Orca-specific integration contract and must receive host events directly through its native adapters.
