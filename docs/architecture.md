@@ -125,10 +125,10 @@ not rewrite prior evidence. These fields describe the declared producer; Chamber
 authenticate an external system or infer acceptance from correlation, verification,
 completion, commit/push, or task state.
 
-## Automatic evidence acquisition
+## Automatic evidence acquisition contract
 
-The normal dispatch path uses a provider-neutral execution context rather than a
-Chamber-specific Orca or Cyclone integration. A controller assigns a unique
+An adopting dispatch path uses a provider-neutral execution context rather than a
+Chamber-specific Orca or Cyclone integration. The controller assigns a unique
 `CHAMBER_EXECUTION_ID` to every dispatch attempt and passes it, together with the
 bounded Todoist or other work-item reference, into the native host environment. The
 Chamber hook persists both values on the observed session. Retries therefore remain
@@ -147,6 +147,17 @@ Todoist lifecycle transition into `accepted`. If no acceptance authority exists,
 session remains acceptance-unknown while its correlation, execution identity, and other
 observable evidence are still retained. The `execution-controller` value is a bounded
 provenance declaration at this local boundary; it is not cryptographic authentication.
+
+### Current integration status
+
+The Chamber repository contains the provider-neutral hook and settlement contract,
+but it does not currently own or install the Todoist-to-Codex/Orca dispatcher. A
+native hook registration by itself cannot invent the controller-issued execution
+identity, recover the bounded work-item reference, or authenticate an acceptance
+result. The end-to-end outcome remains open until one real dispatcher owns both
+context injection and the explicit acceptance callback, and a live readback shows
+the resulting execution binding, correlation, and outcome in the trace. Fixture
+flows validate Chamber's side of that contract only.
 
 ## Native contract mapping
 
@@ -204,4 +215,8 @@ worker baseline from Chamber-managed sessions. Until that gate is met, keep
 `success_probability` unestimated, avoid broad enforcement/canary, and do not add
 large task ontologies or intervention cohorts merely to fill sparse evidence.
 
-Orca can be used to launch or interact with those sessions, but it is only an optional interaction surface: Chamber requires no Orca-specific integration contract and must receive host events directly through its native adapters.
+Orca can be used to launch or interact with those sessions, but it remains an
+optional interaction surface for the Chamber core. A future Orca integration may
+adopt the provider-neutral controller contract above; that external adoption is
+separate from the core's native adapter contract and must not be inferred from a
+fixture or from an Orca worker lifecycle event.

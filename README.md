@@ -10,7 +10,7 @@
 
 Chamber sits around native coding-agent runtimes rather than replacing them. Host adapters translate lifecycle events into a vendor-neutral canonical event model; the Chamber core records minimized traces, evaluates deterministic policy, and emits portable quality evidence that other systems can consume.
 
-The current MVP supports fixture-validated Codex and Gemini CLI adapters, audit-only policy evaluation, a stable user-level JSONL state store, session-aware evidence, execution-bound automatic acquisition, and a standalone Node CLI. Chamber deliberately does not own task queues, model prices, quotas, economic routing, or an Orca-specific runtime contract.
+The current MVP supports fixture-validated Codex and Gemini CLI adapters, audit-only policy evaluation, a stable user-level JSONL state store, session-aware evidence, an execution-bound automatic-acquisition contract, and a standalone Node CLI. Chamber deliberately does not own task queues, model prices, quotas, economic routing, or an Orca-specific runtime contract.
 
 ## Quick start
 
@@ -111,6 +111,8 @@ chamber settle --execution-id "$DISPATCH_ID" \
 ```
 
 The dispatcher supplies the context and invokes settlement as part of its normal completion callback; no Chamber-specific Orca or Cyclone adapter is required. If no acceptance authority exists, it leaves acceptance unknown rather than fabricating a label.
+
+This is a caller contract, not an installed Todoist-to-Codex/Orca dispatcher. Chamber currently ships the native hook and controller-facing settlement API, but it does not launch or modify an external dispatcher. Until an actual controller supplies the context and invokes the explicit callback, native sessions remain valid trace records but have no automatic execution binding, task correlation, or outcome label; the end-to-end acquisition outcome is therefore still open.
 
 ## Codex verification capture (opt-in)
 
