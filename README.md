@@ -24,6 +24,7 @@ node bin/chamber.js doctor --state-dir .chamber-demo
 node bin/chamber.js trace --state-dir .chamber-demo
 node bin/chamber.js evidence --state-dir .chamber-demo
 node bin/chamber.js outcome --state-dir .chamber-demo --session-id SESSION_ID --status accepted
+node bin/chamber.js correlate --state-dir .chamber-demo --session-id SESSION_ID --source-kind work-item --source-id ITEM_ID
 node bin/chamber.js dogfood --state-dir .chamber-demo
 pnpm smoke:gemini
 ```
@@ -41,8 +42,10 @@ chamber trace [--state-dir DIR] [--session-id ID]
 chamber evidence [--state-dir DIR] [--session-id ID]
 chamber summary [--state-dir DIR]
 chamber migrate --from DIR [--state-dir DIR]
+chamber correlate --session-id ID --source-kind KIND --source-id ID [--source-revision REV] [--state-dir DIR]
 chamber outcome --session-id ID --status accepted|rejected|unknown [--state-dir DIR]
 chamber outcome --latest-unlabeled --status accepted|rejected [--state-dir DIR]
+chamber outcome --correlation-id ID [--correlation-kind KIND] --status accepted|rejected|unknown [--producer PRODUCER] [--source-kind KIND --source-id ID] [--state-dir DIR]
 chamber dogfood [--state-dir DIR]
 chamber normalize --host codex|gemini --input event.json [--state-dir DIR]
 chamber hook --host codex|gemini [--state-dir DIR]
@@ -54,7 +57,7 @@ chamber uninstall --host codex|gemini --config-dir ./test-config [--dry-run]
 
 Chamber stores minimized traces in a stable user-level state directory by default. `CHAMBER_STATE_DIR` overrides both that default and `--state-dir` for every hook and operator command. `migrate --from DIR` imports only minimized, event-identified records, deduplicates by event ID, and never removes the source.
 
-`evidence --session-id ID` evaluates exactly that session. Without an ID, Chamber infers the only recorded session or returns `selection_required` when the store has more than one. `summary` is intentionally descriptive: it reports aggregate session, outcome, worker, task-class, and verification counts while leaving `success_probability` unestimated.
+`evidence --session-id ID` evaluates exactly that session. Without an ID, Chamber infers the only recorded session or returns `selection_required` when the store has more than one. `summary` is intentionally descriptive: it reports aggregate session, outcome, worker, task-class, verification, correlation, and outcome-producer counts while leaving `success_probability` unestimated.
 
 ## Architecture
 
@@ -82,9 +85,11 @@ pnpm check:brand
 
 Fixtures are sanitized and do not invoke external agent runtimes. See `test/fixtures/`.
 
-`outcome` records only an explicit bounded status (`accepted`, `rejected`, or `unknown`) against an existing traced session. It reuses that session's worker provenance and stores neither reviewer feedback nor transcripts.
+`correlate` records one bounded provider-neutral source reference (`source_kind`, `source_id`, and optional `source_revision`) against an existing session. It is idempotent for the same source and fails closed on a conflicting revision. Native hooks can capture the same reference once from `CHAMBER_CORRELATION_KIND`, `CHAMBER_CORRELATION_ID`, and optional `CHAMBER_CORRELATION_REVISION`; invalid or incomplete environment metadata is ignored.
 
-`outcome --latest-unlabeled` labels the uniquely most recent unlabeled session, using persisted event timestamps only. A tied, missing, or unparseable timestamp returns a bounded `selection_required` queue without writing. Repeating the same label is idempotent, while a conflicting label is rejected. `dogfood` is a compact report of session-level acceptance, execution and verification coverage plus minimized finding, intervention, budget, capability-gap, and unlabeled-session counts. Its verification state is freshness-aware: `passed`, `stale`, `failed`, or `unknown`. It never treats verification or completion as acceptance.
+`outcome` records only an explicit bounded status (`accepted`, `rejected`, or `unknown`) against an existing traced session. It reuses that session's worker provenance and stores neither reviewer feedback nor transcripts. `--producer` records explicit provenance for `operator`, `user-approval`, `independent-verifier`, `benchmark`, or `oracle`; independent-verifier, benchmark, and oracle producers require a bounded `--source-kind` and `--source-id`. The producer flag declares the evidence source; it does not authenticate or infer acceptance.
+
+`outcome --latest-unlabeled` labels the uniquely most recent unlabeled session, using persisted event timestamps only. `outcome --correlation-id ID` selects the uniquely associated session and returns `selection_required` when the source maps to more than one session. A tied, missing, or unparseable selector returns without writing. Repeating the same status and provenance is idempotent, while a conflicting status or producer/source is rejected. `dogfood` is a compact report of session-level acceptance, execution, verification, correlation, outcome-producer, finding, intervention, budget, capability-gap, and unlabeled-session counts. Its verification state is freshness-aware: `passed`, `stale`, `failed`, or `unknown`. It never treats verification, completion, commit/push, or task-manager state as acceptance.
 
 ## Codex verification capture (opt-in)
 

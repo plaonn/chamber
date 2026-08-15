@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { EVENT_SCHEMA_VERSION, LIFECYCLES } from './constants.js';
 import { redact } from './redaction.js';
 import { normalizedNativeControls } from './effective-worker.js';
+import { normalizeCorrelation, normalizeOutcomeSource } from './correlation.js';
 
 export class SchemaError extends Error {}
 
@@ -33,6 +34,12 @@ export function validateEvent(event) {
   }
   if (event.worker_profile.native_controls) {
     try { normalizedNativeControls(event.worker_profile.native_controls); } catch (error) { throw new SchemaError(error.message); }
+  }
+  if (event.payload?.correlation) {
+    try { normalizeCorrelation(event.payload.correlation); } catch (error) { throw new SchemaError(error.message); }
+  }
+  if (event.payload?.outcome_source) {
+    try { normalizeOutcomeSource(event.payload.outcome_source); } catch (error) { throw new SchemaError(error.message); }
   }
   return event;
 }

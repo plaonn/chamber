@@ -10,7 +10,7 @@ Chamber does not think for the worker. It measures observable execution state, d
 
 `chamber.event.v1` contains lifecycle, host provenance, effective worker profile, normalized payload, and a clearly isolated redacted `vendor` field. Core policy code only evaluates canonical lifecycle and payload fields. Adapters are the only place where raw host names are mapped.
 
-Lifecycle vocabulary: `session.start`, `session.end`, `prompt.submit`, `model.before`, `model.after`, `tool.before`, `tool.after`, `finish.before`, `finish.after`, and `outcome`.
+Lifecycle vocabulary: `session.start`, `session.end`, `prompt.submit`, `model.before`, `model.after`, `tool.before`, `tool.after`, `finish.before`, `finish.after`, `session.link`, and `outcome`. `session.link` carries a bounded provider-neutral reference to an external task or outcome source; it does not import that system's payload.
 
 ## Model-free intervention loop
 
@@ -110,6 +110,21 @@ distinguish at least:
 
 Quality evidence must identify intervention policy/template revisions so baseline and intervention cohorts can be compared without storing prompts, transcripts, or free-form reviewer feedback.
 
+The MVP also supports bounded source correlation. A correlation contains only a validated
+`source_kind`, `source_id`, optional `source_revision`, and provenance. `correlate` appends
+one `session.link` event; native hook environment metadata may attach the same reference to
+the first event for a session. A session accepts at most eight distinct source identities.
+Private paths, control characters, and secret-shaped values are rejected or omitted.
+
+Outcome attribution is explicit and append-only. `operator`, `user-approval`,
+`independent-verifier`, `benchmark`, and `oracle` are supported producer declarations;
+external producers require a bounded source reference, while user approval may be tied
+directly to the selected session. Repeating the exact status,
+producer, and source is idempotent. A different status or provenance is a conflict and does
+not rewrite prior evidence. These fields describe the declared producer; Chamber does not
+authenticate an external system or infer acceptance from correlation, verification,
+completion, commit/push, or task state.
+
 ## Native contract mapping
 
 Codex CLI `0.147.0` maps `SessionStart` to `session.start`, `UserPromptSubmit` to `prompt.submit`, `PreToolUse`/`PostToolUse` to tool lifecycle events, and `Stop` to `finish.before`. `Stop.last_assistant_message` is the canonical `completion_output`. Codex response generation is event-aware: audit/allow returns an empty no-op response, while enforce-mode denial on block-capable events returns `{ "decision": "block", "reason": ... }`. The stable Bash `PostToolUse.tool_response` is output-only JSON (commonly a string), not an exit-status object. Chamber records a recognized check as `execution: unknown` with `exact-exit-status-unsupported`; it never promotes this hook alone to passed verification. These hooks do not define a session-effective reasoning/inference control. CLI config, profile, and default state are ambient inputs, and uncontracted hook fields are unverified; neither is read for `native_controls`. Until Codex exposes an exact session-local source with a versioned adapter mapping, Codex native controls remain explicit `unknown`.
@@ -118,11 +133,11 @@ Gemini CLI `0.37.2` maps `BeforeAgent` to `prompt.submit`, and `AfterAgent` to `
 
 ## Trace and evidence
 
-The first store is append-only JSONL for dependency-free local operation and deterministic export. Its default state root is a stable user-level platform location, never the current repository or worktree; `CHAMBER_STATE_DIR` overrides that location for both hooks and operator commands. Raw hook payload is ephemeral: adapters normalize it and policy evaluates it in memory. Persistence writes `chamber.trace.v2` with `minimized-v2` provenance and an allowlisted projection only: identifiers, lifecycle, host/worker provenance, hook name, stop-loop flag, and verification classification/outcome. Prompts, final responses, command strings, tool output, arbitrary tool input, and raw vendor payload are omitted by default. Explicit raw-vendor debug recording is opt-in only and still redacted; it is not used by normal CLI flows. Migration imports only minimized event-identified records, deduplicates by event ID, and never removes source traces.
+The first store is append-only JSONL for dependency-free local operation and deterministic export. Its default state root is a stable user-level platform location, never the current repository or worktree; `CHAMBER_STATE_DIR` overrides that location for both hooks and operator commands. Raw hook payload is ephemeral: adapters normalize it and policy evaluates it in memory. Persistence writes `chamber.trace.v2` with `minimized-v2` provenance and an allowlisted projection only: identifiers, lifecycle, host/worker provenance, hook name, stop-loop flag, verification classification/outcome, bounded correlation, and bounded outcome-source provenance. Prompts, final responses, command strings, tool output, arbitrary tool input, and raw vendor payload are omitted by default. Explicit raw-vendor debug recording is opt-in only and still redacted; it is not used by normal CLI flows. Migration imports only minimized event-identified records, deduplicates by event ID, and never removes source traces.
 
 Quality evidence preserves exact observed effective-worker provenance rather than a raw model name: host, agent runtime, model, host version, adapter revision, policy profile/revision, config revision, and adapter-allowlisted native controls. Native controls are provider-namespaced (for example, `codex.reasoning_effort` and `gemini.thinking_level`), bounded scalar values, and versioned adapter mappings; they are not a Chamber claim that the two controls are semantically equivalent. An adapter records `unknown` when it cannot observe a control from exact session-local evidence. It never reads or stores whole configs, credentials, private paths, raw provider payloads, prompts, commands, or tool output to fill that gap.
 
-Exact provenance is for reproducibility and contamination prevention. Estimation instead uses the `chamber.factorized-evaluation.v1` contract: the session/task outcome is the statistical unit; model, task class, policy, and selected native controls are candidate factors; partial pooling is preferred for sparse data; and interaction or exact-combination cohorts require supporting evidence. A distinct exact provenance tuple is therefore not automatically a separately estimated worker. Summary surfaces count worker and task-class samples per session, while event counts remain explicitly labelled telemetry. Deterministic verification evidence means only a recognized test/check command with host-supported successful execution semantics. Unclassified tools and recognized commands without a reliable status are not counted. Gemini shell signal termination is failed evidence, never implicit-zero success. Task class is a bounded enum derived in memory from prompt/command text; only its value, revision, and provenance are persisted. Session evidence retains the most recent non-`unknown` class so a later lifecycle event without classifiable input cannot erase it. `chamber outcome --session-id … --status accepted|rejected|unknown` is the standalone producer for explicit acceptance evidence and contains no feedback/transcript body. The MVP sets `success_probability` to `null` with `uncertainty: insufficient_evidence` until sufficient accepted outcomes exist.
+Exact provenance is for reproducibility and contamination prevention. Estimation instead uses the `chamber.factorized-evaluation.v1` contract: the session/task outcome is the statistical unit; model, task class, policy, selected native controls, and bounded source kind are candidate factors; partial pooling is preferred for sparse data; and interaction or exact-combination cohorts require supporting evidence. A distinct exact provenance tuple is therefore not automatically a separately estimated worker. Summary surfaces count worker, task-class, correlation, and outcome-producer samples per session, while event counts remain explicitly labelled telemetry. Deterministic verification evidence means only a recognized test/check command with host-supported successful execution semantics. Unclassified tools and recognized commands without a reliable status are not counted. Gemini shell signal termination is failed evidence, never implicit-zero success. Task class is a bounded enum derived in memory from prompt/command text; only its value, revision, and provenance are persisted. Session evidence retains the most recent non-`unknown` class so a later lifecycle event without classifiable input cannot erase it. `chamber outcome --session-id … --status accepted|rejected|unknown` is the standalone producer for explicit acceptance evidence, while `--correlation-id` selects a uniquely associated session. Neither command stores feedback/transcript body. The MVP sets `success_probability` to `null` with `uncertainty: insufficient_evidence` until sufficient accepted outcomes exist.
 
 ## Adapter contract status
 
@@ -145,11 +160,15 @@ estimator, or broad-enforcement expansion.
 Use the local-only operator surfaces to close the evidence gap:
 
 - `chamber dogfood` reports session-level acceptance, execution, verification,
-  task-class, finding, intervention, budget, capability-gap, and unlabeled-session
-  coverage.
+  task-class, correlation, outcome-producer, finding, intervention, budget,
+  capability-gap, and unlabeled-session coverage.
+- `chamber correlate --session-id ID --source-kind KIND --source-id ID` records a
+  bounded external source association; `chamber outcome --correlation-id ID` can
+  select the uniquely associated session.
 - `chamber outcome --session-id ID --status accepted|rejected` is the explicit
   acceptance producer. Verification, completion text, commit/push, or task-manager
-  state must not be treated as acceptance.
+  state must not be treated as acceptance; external producer fields remain explicit
+  declarations rather than authenticated claims.
 - Codex verification capture is opt-in through the documented isolated wrapper so
   a recognized check has an observed exit status instead of an inferred success.
 

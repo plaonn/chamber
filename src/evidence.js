@@ -3,12 +3,15 @@ import { persistedTaskClass } from './task-classification.js';
 import { factorizedEvaluation } from './effective-worker.js';
 import { verificationState } from './trajectory.js';
 import { isSuccessfulVerification } from './verification.js';
+import { correlationsFromEvents } from './correlation.js';
 
 export function qualityEvidence(events, workerProfile) {
   const outcomes = events.filter((event) => event.lifecycle === 'outcome');
-  const acceptance = outcomes.at(-1)?.payload.status ?? 'unknown';
+  const latestOutcome = outcomes.at(-1);
+  const acceptance = latestOutcome?.payload.status ?? 'unknown';
   const verified = events.filter(isSuccessfulVerification).length;
   const taskClassification = persistedTaskClass(events);
+  const correlations = correlationsFromEvents(events);
   return {
     schema_version: QUALITY_EVIDENCE_SCHEMA_VERSION,
     generated_at: new Date().toISOString(),
@@ -16,7 +19,8 @@ export function qualityEvidence(events, workerProfile) {
     task_class: taskClassification.value,
     // `outcome` is retained for v1 consumers; it is explicit acceptance only.
     outcome: acceptance,
-    acceptance: { status: acceptance, provenance: outcomes.at(-1)?.payload.outcome_provenance ?? null },
+    acceptance: { status: acceptance, provenance: latestOutcome?.payload.outcome_provenance ?? null, source: latestOutcome?.payload.outcome_source ?? null },
+    correlation_sources: correlations,
     verification_evidence_count: verified,
     evidence_count: events.length,
     freshness: events.length ? 'current-session' : 'none',
@@ -38,18 +42,30 @@ export function evidenceSelection(records, sessionId) {
 export function traceSummary(records) {
   const events = records.map((record) => record.event).filter(Boolean);
   const count = (values) => Object.fromEntries([...values].sort().map((value) => [value, values.filter((item) => item === value).length]));
-  const sessions = [...new Map(events.map((event) => [event.session_id, events.filter((candidate) => candidate.session_id === event.session_id)]))].map(([sessionId, sessionEvents]) => ({
-    session_id: sessionId,
-    worker_profile: sessionEvents.at(-1)?.worker_profile,
-    task_class: persistedTaskClass(sessionEvents).value,
-    acceptance: sessionEvents.filter((event) => event.lifecycle === 'outcome').at(-1)?.payload?.status ?? 'unknown',
-    verification: verificationState(sessionEvents),
-    execution: sessionEvents.some((event) => event.lifecycle === 'finish.before' || event.lifecycle === 'finish.after') ? 'completed' : 'unknown',
-    finding_codes: records.filter((record) => record.event?.session_id === sessionId).map((record) => record.policy_decision?.finding?.code).filter(Boolean),
-    intervention_results: records.filter((record) => record.event?.session_id === sessionId).map((record) => record.policy_decision?.intervention?.result).filter(Boolean),
-    degraded: records.filter((record) => record.event?.session_id === sessionId).flatMap((record) => record.policy_decision?.degraded ?? [])
-  }));
+  const sessions = [...new Map(events.map((event) => [event.session_id, events.filter((candidate) => candidate.session_id === event.session_id)]))].map(([sessionId, sessionEvents]) => {
+    const outcomes = sessionEvents.filter((event) => event.lifecycle === 'outcome');
+    const latestOutcome = outcomes.at(-1);
+    const sessionRecords = records.filter((record) => record.event?.session_id === sessionId);
+    return {
+      session_id: sessionId,
+      worker_profile: sessionEvents.at(-1)?.worker_profile,
+      task_class: persistedTaskClass(sessionEvents).value,
+      acceptance: latestOutcome?.payload?.status ?? 'unknown',
+      outcome_source: latestOutcome?.payload?.outcome_source ?? null,
+      outcome_provenance: latestOutcome?.payload?.outcome_provenance ?? null,
+      correlation_sources: correlationsFromEvents(sessionEvents),
+      verification: verificationState(sessionEvents),
+      execution: sessionEvents.some((event) => event.lifecycle === 'finish.before' || event.lifecycle === 'finish.after') ? 'completed' : 'unknown',
+      finding_codes: sessionRecords.map((record) => record.policy_decision?.finding?.code).filter(Boolean),
+      intervention_results: sessionRecords.map((record) => record.policy_decision?.intervention?.result).filter(Boolean),
+      degraded: sessionRecords.flatMap((record) => record.policy_decision?.degraded ?? [])
+    };
+  });
   const flatten = (field) => sessions.flatMap((session) => session[field]);
+  const outcomeSources = sessions.map((session) => {
+    if (session.outcome_source?.producer) return session.outcome_source.producer;
+    return session.outcome_provenance === 'operator.explicit-v1' ? 'operator' : session.outcome_provenance === 'user-approval.explicit-v1' ? 'user-approval' : null;
+  }).filter(Boolean);
   return {
     trace_records: records.length,
     distinct_session_count: sessions.length,
@@ -67,6 +83,10 @@ export function traceSummary(records) {
     intervention_result_counts: count(flatten('intervention_results')),
     budget_exhaustion_count: flatten('intervention_results').filter((result) => result === 'budget_exhausted').length,
     capability_gap_counts: count(flatten('degraded')),
+    correlated_session_count: sessions.filter((session) => session.correlation_sources.length > 0).length,
+    uncorrelated_session_count: sessions.filter((session) => session.correlation_sources.length === 0).length,
+    correlation_source_counts: count(sessions.flatMap((session) => session.correlation_sources.map((source) => source.source_kind))),
+    outcome_producer_counts: count(outcomeSources),
     recent_unlabeled_session_ids: sessions.filter((session) => session.acceptance === 'unknown').slice(-10).map((session) => session.session_id),
     success_probability: null,
     uncertainty: 'not_estimated_in_mvp'

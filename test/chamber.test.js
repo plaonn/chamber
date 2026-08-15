@@ -14,6 +14,7 @@ import { resolveStateDir } from '../src/state.js';
 import { nativeControlsFromAdapter } from '../src/effective-worker.js';
 import { createEvent } from '../src/schema.js';
 import { classifyMutation } from '../src/mutation.js';
+import { correlationFromEnvironment, normalizeCorrelation } from '../src/correlation.js';
 
 const exec = promisify(execFile);
 const runWithInput = (file, args, input, options = {}) => new Promise((resolve, reject) => {
@@ -243,6 +244,66 @@ test('outcome latest-unlabeled selects only a uniquely newest comparable session
   await append('invalid-time', 'not-a-timestamp');
   result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--latest-unlabeled', '--status', 'accepted'])).stdout);
   assert.equal(result.status, 'selection_required'); assert.ok(result.session_ids.includes('invalid-time'));
+  await rm(dir, { recursive: true });
+});
+
+test('correlation refs are bounded, provider-neutral, and reject private paths or secret-shaped values', () => {
+  assert.deepEqual(normalizeCorrelation({ source_kind: 'Todoist', source_id: 'task-123', source_revision: 'rev-1', provenance: 'fixture.v1' }), {
+    schema_version: 'chamber.correlation.v1', source_kind: 'todoist', source_id: 'task-123', source_revision: 'rev-1', provenance: 'fixture.v1'
+  });
+  assert.equal(correlationFromEnvironment({ CHAMBER_CORRELATION_KIND: 'todoist', CHAMBER_CORRELATION_ID: 'task-123' }).source_id, 'task-123');
+  assert.equal(correlationFromEnvironment({ CHAMBER_CORRELATION_KIND: 'todoist' }), null);
+  assert.equal(correlationFromEnvironment({ CHAMBER_CORRELATION_KIND: 'todoist', CHAMBER_CORRELATION_ID: '/Users/operator/private-task' }), null);
+  assert.throws(() => normalizeCorrelation({ source_kind: 'todoist', source_id: 'sk-test-secret' }), /not safe to persist/);
+});
+
+test('correlate appends a session link and user approval remains explicit and idempotent', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-session-link-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  await runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify({ hook_event_name: 'BeforeAgent', session_id: 'linked-session', prompt: 'Implement feature' }), { env: { ...process.env, CHAMBER_STATE_DIR: dir } });
+  let result = JSON.parse((await exec(process.execPath, [cli, 'correlate', '--state-dir', dir, '--session-id', 'linked-session', '--source-kind', 'work-item', '--source-id', 'item-123'])).stdout);
+  assert.equal(result.recorded, true);
+  result = JSON.parse((await exec(process.execPath, [cli, 'correlate', '--state-dir', dir, '--session-id', 'linked-session', '--source-kind', 'work-item', '--source-id', 'item-123'])).stdout);
+  assert.equal(result.idempotent, true);
+  result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--correlation-kind', 'work-item', '--correlation-id', 'item-123', '--producer', 'user-approval', '--status', 'accepted'])).stdout);
+  assert.equal(result.recorded, true); assert.equal(result.provenance, 'user-approval.explicit-v1');
+  const records = await new TraceStore(dir).query({ sessionId: 'linked-session', limit: Infinity });
+  assert.equal(records.filter((record) => record.event.lifecycle === 'session.link').length, 1);
+  await rm(dir, { recursive: true });
+});
+
+test('hook correlation is captured once and authoritative outcome provenance is explicit and idempotent', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-correlation-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  const env = { ...process.env, CHAMBER_STATE_DIR: dir, CHAMBER_CORRELATION_KIND: 'todoist', CHAMBER_CORRELATION_ID: 'task-123', CHAMBER_CORRELATION_REVISION: 'rev-1' };
+  const raw = { hook_event_name: 'BeforeAgent', session_id: 'correlated-session', prompt: 'Implement feature' };
+  await runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify(raw), { env });
+  await runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify({ ...raw, hook_event_name: 'AfterAgent', prompt_response: 'done' }), { env });
+  let records = await new TraceStore(dir).query({ sessionId: raw.session_id, limit: Infinity });
+  assert.equal(records.filter((record) => record.event.lifecycle === 'session.link').length, 0);
+  assert.equal(records.filter((record) => record.event.payload.correlation?.source_id === 'task-123').length, 1);
+  assert.doesNotMatch(await readFile(join(dir, 'trace.jsonl'), 'utf8'), /Implement feature|done/);
+  const linked = JSON.parse((await exec(process.execPath, [cli, 'correlate', '--state-dir', dir, '--session-id', raw.session_id, '--source-kind', 'todoist', '--source-id', 'task-123', '--source-revision', 'rev-1'])).stdout);
+  assert.equal(linked.idempotent, true);
+  let result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--correlation-kind', 'todoist', '--correlation-id', 'task-123', '--producer', 'benchmark', '--source-kind', 'todoist', '--source-id', 'task-123', '--source-revision', 'rev-1', '--status', 'accepted'])).stdout);
+  assert.equal(result.recorded, true); assert.equal(result.provenance, 'benchmark.explicit-v1');
+  result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--correlation-id', 'task-123', '--producer', 'benchmark', '--source-kind', 'todoist', '--source-id', 'task-123', '--source-revision', 'rev-1', '--status', 'accepted'])).stdout);
+  assert.equal(result.idempotent, true);
+  await assert.rejects(exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--session-id', raw.session_id, '--producer', 'oracle', '--source-kind', 'todoist', '--source-id', 'task-123', '--source-revision', 'rev-1', '--status', 'accepted']), /conflicting_acceptance_evidence/);
+  records = await new TraceStore(dir).query({ sessionId: raw.session_id, limit: Infinity });
+  const outcome = records.at(-1).event; assert.equal(outcome.payload.outcome_source.producer, 'benchmark'); assert.equal(outcome.payload.outcome_source.correlation.source_kind, 'todoist');
+  const evidence = JSON.parse((await exec(process.execPath, [cli, 'evidence', '--state-dir', dir, '--session-id', raw.session_id])).stdout);
+  assert.equal(evidence.acceptance.source.producer, 'benchmark'); assert.equal(evidence.correlation_sources[0].source_id, 'task-123');
+  const summary = JSON.parse((await exec(process.execPath, [cli, 'summary', '--state-dir', dir])).stdout);
+  assert.equal(summary.correlated_session_count, 1); assert.deepEqual(summary.outcome_producer_counts, { benchmark: 1 });
+  await rm(dir, { recursive: true });
+});
+
+test('correlation outcome selection fails closed when one source maps to multiple sessions', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'chamber-correlation-selection-')); const cli = new URL('../bin/chamber.js', import.meta.url).pathname;
+  const env = { ...process.env, CHAMBER_STATE_DIR: dir, CHAMBER_CORRELATION_KIND: 'work-item', CHAMBER_CORRELATION_ID: 'shared-1' };
+  for (const sessionId of ['one', 'two']) await runWithInput(process.execPath, [cli, 'hook', '--host', 'gemini'], JSON.stringify({ hook_event_name: 'BeforeAgent', session_id: sessionId, prompt: 'Implement feature' }), { env });
+  const result = JSON.parse((await exec(process.execPath, [cli, 'outcome', '--state-dir', dir, '--correlation-kind', 'work-item', '--correlation-id', 'shared-1', '--status', 'accepted'])).stdout);
+  assert.deepEqual(result, { status: 'selection_required', session_ids: ['one', 'two'] });
+  const records = await new TraceStore(dir).query({ limit: Infinity }); assert.equal(records.filter((record) => record.event.lifecycle === 'outcome').length, 0);
   await rm(dir, { recursive: true });
 });
 

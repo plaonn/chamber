@@ -2,9 +2,22 @@ import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { TRACE_PERSISTENCE_REVISION, TRACE_SCHEMA_VERSION } from './constants.js';
 import { redact } from './redaction.js';
+import { normalizeCorrelation, normalizeOutcomeSource } from './correlation.js';
+
+function safeCorrelation(value) {
+  if (!value) return undefined;
+  try { return normalizeCorrelation(value, { defaultProvenance: 'derived.v1' }); } catch { return undefined; }
+}
+
+function safeOutcomeSource(value) {
+  if (!value) return undefined;
+  try { return normalizeOutcomeSource(value); } catch { return undefined; }
+}
 
 function persistedEvent(event) {
   const verification = event.payload?.verification;
+  const correlation = safeCorrelation(event.payload?.correlation);
+  const outcomeSource = safeOutcomeSource(event.payload?.outcome_source);
   return {
     schema_version: event.schema_version,
     event_id: event.event_id,
@@ -29,7 +42,9 @@ function persistedEvent(event) {
       } : undefined,
       task_classification: event.payload?.task_classification,
       status: event.payload?.status,
-      outcome_provenance: event.payload?.outcome_provenance
+      outcome_provenance: event.payload?.outcome_provenance,
+      correlation,
+      outcome_source: outcomeSource
     },
     vendor: { hook_event_name: event.vendor?.hook_event_name }
   };
