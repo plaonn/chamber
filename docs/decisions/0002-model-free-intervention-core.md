@@ -27,6 +27,12 @@ Chamber does not generate an open-ended repair plan for the worker. A detector r
 
 The native worker remains responsible for semantic reasoning and for choosing the next coding action after receiving correction feedback.
 
+Chamber supplies evidence and bounded interventions. Cyclone is the planned owner
+of execution selection and durable control, while a replaceable interaction UI is
+optional and needs no direct Chamber integration. This separation does not establish
+dispatcher adoption or end-to-end acceptance; see the
+[current integration status](../architecture.md#current-integration-status).
+
 ## Deterministic scope
 
 Examples of core-suitable findings include:
@@ -61,6 +67,15 @@ Model-free does not mean static. Chamber can learn which predefined policy works
 Candidate policy revisions should move through audit, shadow, bounded canary, comparison, and promote/retire stages. Evidence is conditioned on the effective worker profile, task class, adapter/config/policy revisions, and intervention provenance. Success probability or other estimates may use simple rates, Bayesian methods, regression, or contextual-bandit techniques when justified by data.
 
 This learning chooses among policy/intervention variants; it does not train or modify native model weights.
+
+External model benchmark scores are separate prior or candidate-eligibility
+references, not authoritative real-work outcomes or direct success probabilities.
+Their provenance, native configuration, evaluation context, and uncertainty must be
+preserved under a future ingestion contract; Chamber does not operate its own generic
+problem suite or periodic benchmark engine. Statistical estimation and external
+benchmark ingestion remain future work, as detailed in the
+[architecture](../architecture.md#external-evaluations-and-real-work-evidence) and
+[schema contracts](../schema.md#planned-external-benchmark-references).
 
 ## Safety and loop control
 

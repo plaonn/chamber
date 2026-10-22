@@ -6,6 +6,34 @@ Chamber sits outside native runtimes. Codex and Gemini CLI remain responsible fo
 
 Chamber does not think for the worker. It measures observable execution state, detects bounded findings, selects predefined interventions, and feeds those corrections back through the native runtime so the native worker can reason again. Semantic judgment that cannot be grounded in deterministic or externally supplied evidence is outside the core. A future external semantic evaluator may emit advisory findings, but it must remain optional and separate from the model-free core.
 
+Cyclone is the planned execution control plane: it consumes Chamber evidence, applies
+hard constraints and a quality floor, then selects eligible workers using cost, quota,
+latency, and availability. Its planned responsibilities include durable dispatch,
+retry, resume, and recovery rather than re-evaluating model quality. A replaceable
+UI or CLI may launch or steer native workers; it is an optional interaction surface
+with no required direct integration edge to Chamber. These role boundaries do not
+claim an implemented Cyclone integration.
+
+## External evaluations and real-work evidence
+
+External model benchmarks, such as Artificial Analysis, Epoch AI, Arena, LiveBench,
+and SWE-bench, are prior or candidate-eligibility references only. They remain separate
+from native workload observations, intervention provenance, and authoritative acceptance
+of an actual task. Chamber does not build its own generic problem suite or periodic
+benchmark execution engine; real-work dogfood and explicit outcome collection remain
+in scope.
+
+A future ingestion contract must preserve the source, exact model identity,
+namespaced native reasoning/thinking configuration, benchmark identity and version,
+evaluation date, environment, uncertainty, and freshness. Native controls must retain
+their provider meanings. Scores from different benchmarks must not be blindly averaged
+or converted directly into actual task success probabilities. Missing coverage remains
+unknown, not evidence of capability or failure.
+
+External benchmark ingestion and its adapters are planned, not implemented. Source
+fields, licenses, and available coverage must be verified when an adapter is built;
+these requirements do not extend the current quality-evidence schema.
+
 ## Canonical event first
 
 `chamber.event.v1` contains lifecycle, host provenance, effective worker profile, normalized payload, and a clearly isolated redacted `vendor` field. Core policy code only evaluates canonical lifecycle and payload fields. Adapters are the only place where raw host names are mapped.
@@ -127,14 +155,13 @@ completion, commit/push, or task state.
 
 ## Automatic evidence acquisition contract
 
-An adopting dispatch path uses a provider-neutral execution context rather than a
-Chamber-specific Orca or Cyclone integration. The controller assigns a unique
-`CHAMBER_EXECUTION_ID` to every dispatch attempt and passes it, together with the
-bounded Todoist or other work-item reference, into the native host environment. The
-Chamber hook persists both values on the observed session. Retries therefore remain
-distinct even when they point to the same task revision.
+An adopting dispatch path uses a provider-neutral execution context. The actual
+dispatcher assigns a unique `CHAMBER_EXECUTION_ID` to every dispatch attempt and
+passes it, together with the bounded work-item reference, into the native host
+environment. The Chamber hook persists both values on the observed session.
+Retries therefore remain distinct even when they point to the same task revision.
 
-After the controller receives an explicit acceptance authority result, it calls
+After the dispatcher receives an explicit acceptance authority result, it calls
 `chamber settle --execution-id ... --status ... --producer execution-controller`
 with the bounded authority source. Settlement selects exactly one session by execution
 identity, appends the explicit outcome, and is idempotent for a repeated identical
@@ -142,22 +169,24 @@ callback. Missing or duplicate execution identities return without writing. This
 automatic replacement for a person finding a session and entering `correlate` followed by
 `outcome`.
 
-The controller must not translate worker completion, a clean test, a commit, a push, or a
-Todoist lifecycle transition into `accepted`. If no acceptance authority exists, the
+The dispatcher must not translate worker completion, a clean test, a commit, a push, or a
+task lifecycle transition into `accepted`. If no acceptance authority exists, the
 session remains acceptance-unknown while its correlation, execution identity, and other
 observable evidence are still retained. The `execution-controller` value is a bounded
 provenance declaration at this local boundary; it is not cryptographic authentication.
 
 ### Current integration status
 
-The Chamber repository contains the provider-neutral hook and settlement contract,
-but it does not currently own or install the Todoist-to-Codex/Orca dispatcher. A
-native hook registration by itself cannot invent the controller-issued execution
-identity, recover the bounded work-item reference, or authenticate an acceptance
-result. The end-to-end outcome remains open until one real dispatcher owns both
-context injection and the explicit acceptance callback, and a live readback shows
-the resulting execution binding, correlation, and outcome in the trace. Fixture
-flows validate Chamber's side of that contract only.
+The provider-neutral execution, correlation, and settlement surfaces are implemented
+in Chamber. The actual dispatcher and adoption owner remain unconfirmed; Chamber
+does not own or install that dispatcher. A native hook registration by itself cannot
+invent the dispatcher-issued execution identity, recover the bounded work-item
+reference, or authenticate an acceptance result. The end-to-end outcome remains
+open until one real dispatcher owns both context injection and the explicit
+acceptance callback, and a live readback shows the resulting execution binding,
+correlation, and outcome in the trace. Fixture
+flows validate Chamber's side of that contract only. No host product-specific
+integration contract is required or implied.
 
 ## Native contract mapping
 
@@ -171,7 +200,7 @@ The first store is append-only JSONL for dependency-free local operation and det
 
 Quality evidence preserves exact observed effective-worker provenance rather than a raw model name: host, agent runtime, model, host version, adapter revision, policy profile/revision, config revision, and adapter-allowlisted native controls. Native controls are provider-namespaced (for example, `codex.reasoning_effort` and `gemini.thinking_level`), bounded scalar values, and versioned adapter mappings; they are not a Chamber claim that the two controls are semantically equivalent. An adapter records `unknown` when it cannot observe a control from exact session-local evidence. It never reads or stores whole configs, credentials, private paths, raw provider payloads, prompts, commands, or tool output to fill that gap.
 
-Exact provenance is for reproducibility and contamination prevention. Estimation instead uses the `chamber.factorized-evaluation.v1` contract: the session/task outcome is the statistical unit; model, task class, policy, selected native controls, execution identity, and bounded source kind are candidate factors; partial pooling is preferred for sparse data; and interaction or exact-combination cohorts require supporting evidence. A distinct exact provenance tuple is therefore not automatically a separately estimated worker. Summary surfaces count worker, task-class, execution-binding, correlation, and outcome-producer samples per session, while event counts remain explicitly labelled telemetry. Deterministic verification evidence means only a recognized test/check command with host-supported successful execution semantics. Unclassified tools and recognized commands without a reliable status are not counted. Gemini shell signal termination is failed evidence, never implicit-zero success. Task class is a bounded enum derived in memory from prompt/command text; only its value, revision, and provenance are persisted. Session evidence retains the most recent non-`unknown` class so a later lifecycle event without classifiable input cannot erase it. `chamber outcome --session-id … --status accepted|rejected|unknown` is the standalone producer for explicit acceptance evidence, while `--correlation-id` selects a uniquely associated session. `chamber settle --execution-id …` is the controller path for the same outcome contract without a session lookup. Neither command stores feedback/transcript body. The MVP sets `success_probability` to `null` with `uncertainty: insufficient_evidence` until sufficient accepted outcomes exist.
+Exact provenance is for reproducibility and contamination prevention. The implemented `chamber.factorized-evaluation.v1` metadata describes future estimation: the session/task outcome is the statistical unit; model, task class, policy, selected native controls, execution identity, and bounded source kind are candidate factors; partial pooling is preferred for sparse data; and interaction or exact-combination cohorts require supporting evidence. A distinct exact provenance tuple is therefore not automatically a separately estimated worker. Summary surfaces count worker, task-class, execution-binding, correlation, and outcome-producer samples per session, while event counts remain explicitly labelled telemetry. Deterministic verification evidence means only a recognized test/check command with host-supported successful execution semantics. Unclassified tools and recognized commands without a reliable status are not counted. Gemini shell signal termination is failed evidence, never implicit-zero success. Task class is a bounded enum derived in memory from prompt/command text; only its value, revision, and provenance are persisted. Session evidence retains the most recent non-`unknown` class so a later lifecycle event without classifiable input cannot erase it. `chamber outcome --session-id … --status accepted|rejected|unknown` is the standalone producer for explicit acceptance evidence, while `--correlation-id` selects a uniquely associated session. `chamber settle --execution-id …` is the controller path for the same outcome contract without a session lookup. Neither command stores feedback/transcript body. The MVP always sets `success_probability` to `null`; uncertainty is `insufficient_evidence` or `not_estimated_in_mvp`. It does not implement an estimator.
 
 ## Adapter contract status
 
@@ -215,8 +244,14 @@ worker baseline from Chamber-managed sessions. Until that gate is met, keep
 `success_probability` unestimated, avoid broad enforcement/canary, and do not add
 large task ontologies or intervention cohorts merely to fill sparse evidence.
 
-Orca can be used to launch or interact with those sessions, but it remains an
-optional interaction surface for the Chamber core. A future Orca integration may
-adopt the provider-neutral controller contract above; that external adoption is
-separate from the core's native adapter contract and must not be inferred from a
-fixture or from an Orca worker lifecycle event.
+Cyclone design and migration may resume once Chamber has observed and controlled
+real coding workloads in at least two native runtimes under the same canonical
+contract and provides stable quality evidence that an external consumer can read.
+A completed success-probability predictor or an arbitrary sample count is not a
+prerequisite; the evidence needed for estimation and policy promotion above is a
+separate gate. Adapter fixtures alone do not demonstrate this restart condition.
+
+Until then, CBR development and product expansion remain frozen. Existing code,
+audit evidence, completion records, and passive watching state are retained;
+the freeze does not authorize their deletion or rewriting. Cyclone rename,
+migration, and artificial workloads to fill a canary remain outside this phase.

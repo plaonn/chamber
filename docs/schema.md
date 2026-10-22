@@ -46,6 +46,10 @@ declarations require that source reference; user approval may use the selected s
 directly. The declaration identifies how the outcome was supplied; it is not authentication and does not turn correlation,
 verification, completion, commit/push, or task-manager state into acceptance.
 
+The `benchmark` producer declaration describes an explicitly supplied outcome for
+the selected session/task. It does not make a general external model score an
+acceptance label for real work.
+
 ## `chamber.execution.v1`
 
 An execution identity is a bounded controller-issued identifier for one dispatch attempt.
@@ -61,10 +65,15 @@ It is carried in the canonical event payload and persisted in the minimized trac
 }
 ```
 
-The native hook reads `CHAMBER_EXECUTION_ID`. The controller must generate a new value
-for every retry, even when the Todoist task source is unchanged. `chamber settle` uses this
+The native hook reads `CHAMBER_EXECUTION_ID`. The actual dispatcher must generate a new value
+for every retry, even when the work-item source is unchanged. `chamber settle` uses this
 identity to select exactly one session and never falls back to recency or an arbitrary
 session. Missing, duplicated, or invalid identities fail closed.
+
+Execution, correlation, and settlement are implemented Chamber surfaces. Supplying
+per-attempt identity and bounded task references, then calling settlement with an
+explicit acceptance authority result, belongs to the adopting dispatcher. That
+dispatcher and adoption owner remain unconfirmed; end-to-end integration is incomplete.
 
 ## `chamber.finding.v1`
 
@@ -182,11 +191,23 @@ The serialized capability evidence records the bounded native, adapter, runtime-
 
 ## Current `chamber.quality-evidence.v1`
 
-Contains `worker_profile`, `task_class`, execution identity, execution `outcome`, deterministic verification count, total evidence count, freshness, probability (nullable), uncertainty, and schema/policy provenance. Probability must remain null rather than fabricated while the profile lacks enough evidence.
+Contains `worker_profile`, `task_class`, execution identity, acceptance `outcome`, deterministic verification count, total evidence count, freshness, probability (nullable), uncertainty, and schema/policy provenance. The current implementation always exports null probability; an estimator is not implemented.
 
 The accompanying `evaluation` object is `chamber.factorized-evaluation.v1`, not an estimator result. It records that exact worker provenance is available separately, the statistical unit is `session-task-outcome`, selected model/task/policy/native-control factors may be pooled, and an interaction or exact-combination cohort must be evidence-justified. A native control is a namespaced provider value, never a cross-provider semantic level.
 
 The current implementation uses a single bounded outcome status (`accepted`, `rejected`, or `unknown`). Quality evidence exposes an execution identity, bounded `correlation_sources`, and an optional acceptance `source` while `chamber.trace.v2` persists bounded attribution for each finding and intervention. This quality-evidence export does not yet expose individual interventions as estimator cohorts. That promotion remains gated on sufficient explicit acceptance and comparable verification evidence.
+
+## Planned external benchmark references
+
+External benchmark ingestion and adapters are not implemented, and the current
+schemas define no external model-score record. A future contract must keep source,
+exact model identity, namespaced native reasoning/thinking configuration, benchmark
+identity/version, evaluation date, environment, uncertainty, and freshness separate
+from session/task outcomes and intervention evidence. Unknown coverage stays unknown.
+Such scores are prior or candidate-eligibility references only: do not blindly
+average them or convert them directly into actual task success probabilities.
+See [architecture](architecture.md#external-evaluations-and-real-work-evidence) for
+the scope boundary; this is not an extension of `chamber.quality-evidence.v1`.
 
 ## Next quality-evidence revision requirements
 
